@@ -26,20 +26,50 @@ export default function RegisterPage() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  const validateField = (name: string, value: string) => {
+    switch (name) {
+      case "name":
+        return value.trim().length < 3 ? "Name must be at least 3 characters" : "";
+      case "email":
+        return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? "Invalid email address" : "";
+      case "password":
+        const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+        if (!value) return "Password is required";
+        if (!passwordRegex.test(value)) {
+          return "Password must be at least 8 characters, include an uppercase letter, a lowercase letter, a number, and a special character.";
+        }
+        return "";
+      case "phone":
+        return value && !/^[0-9]{10}$/.test(value) ? "Phone number must be exactly 10 digits" : "";
+      default:
+        return "";
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: validateField(name, value) }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.password) {
-      toast.error("Name, email and password are required");
+    
+    const newErrors = {
+      name: validateField("name", form.name),
+      email: validateField("email", form.email),
+      password: validateField("password", form.password),
+      phone: validateField("phone", form.phone),
+    };
+    
+    setErrors(newErrors);
+    
+    if (Object.values(newErrors).some(err => err !== "")) {
       return;
     }
-    if (form.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
+    
     setLoading(true);
     try {
       await register(
@@ -92,6 +122,7 @@ export default function RegisterPage() {
           <form
             onSubmit={handleSubmit}
             className="flex flex-col gap-5"
+            noValidate
           >
             {/* Name */}
             <div className="flex flex-col gap-2">
@@ -115,12 +146,15 @@ export default function RegisterPage() {
                   placeholder="John Doe"
                   value={form.name}
                   onChange={handleChange}
-                  required
-                  minLength={3}
                   autoComplete="name"
-                  className="h-12 w-full rounded-xl border border-white/10 bg-black/20 pl-[46px] pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-yellow-400/50 focus:bg-black/30 focus:ring-4 focus:ring-yellow-400/[0.06]"
+                  className={`h-12 w-full rounded-xl border bg-black/20 pl-[46px] pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:bg-black/30 focus:ring-4 ${
+                    errors.name
+                      ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/10"
+                      : "border-white/10 focus:border-yellow-400/50 focus:ring-yellow-400/[0.06]"
+                  }`}
                 />
               </div>
+              {errors.name && <p className="text-xs text-red-400 mt-1">{errors.name}</p>}
             </div>
 
             {/* Email */}
@@ -145,11 +179,15 @@ export default function RegisterPage() {
                   placeholder="you@example.com"
                   value={form.email}
                   onChange={handleChange}
-                  required
                   autoComplete="email"
-                  className="h-12 w-full rounded-xl border border-white/10 bg-black/20 pl-[46px] pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-yellow-400/50 focus:bg-black/30 focus:ring-4 focus:ring-yellow-400/[0.06]"
+                  className={`h-12 w-full rounded-xl border bg-black/20 pl-[46px] pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:bg-black/30 focus:ring-4 ${
+                    errors.email
+                      ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/10"
+                      : "border-white/10 focus:border-yellow-400/50 focus:ring-yellow-400/[0.06]"
+                  }`}
                 />
               </div>
+              {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email}</p>}
             </div>
 
             {/* Phone */}
@@ -177,12 +215,15 @@ export default function RegisterPage() {
                   placeholder="9876543210"
                   value={form.phone}
                   onChange={handleChange}
-                  pattern="[0-9]{10}"
-                  title="Please enter a valid 10-digit phone number"
                   autoComplete="tel"
-                  className="h-12 w-full rounded-xl border border-white/10 bg-black/20 pl-[46px] pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-yellow-400/50 focus:bg-black/30 focus:ring-4 focus:ring-yellow-400/[0.06]"
+                  className={`h-12 w-full rounded-xl border bg-black/20 pl-[46px] pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:bg-black/30 focus:ring-4 ${
+                    errors.phone
+                      ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/10"
+                      : "border-white/10 focus:border-yellow-400/50 focus:ring-yellow-400/[0.06]"
+                  }`}
                 />
               </div>
+              {errors.phone && <p className="text-xs text-red-400 mt-1">{errors.phone}</p>}
             </div>
 
             {/* Password */}
@@ -204,13 +245,15 @@ export default function RegisterPage() {
                   id="reg-password"
                   name="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="At least 6 characters"
+                  placeholder="At least 8 characters"
                   value={form.password}
                   onChange={handleChange}
-                  required
-                  minLength={6}
                   autoComplete="new-password"
-                  className="h-12 w-full rounded-xl border border-white/10 bg-black/20 pl-[46px] pr-12 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-yellow-400/50 focus:bg-black/30 focus:ring-4 focus:ring-yellow-400/[0.06]"
+                  className={`h-12 w-full rounded-xl border bg-black/20 pl-[46px] pr-12 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:bg-black/30 focus:ring-4 ${
+                    errors.password
+                      ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/10"
+                      : "border-white/10 focus:border-yellow-400/50 focus:ring-yellow-400/[0.06]"
+                  }`}
                 />
 
                 <button
@@ -229,9 +272,13 @@ export default function RegisterPage() {
                 </button>
               </div>
 
-              <p className="text-xs text-slate-600">
-                Use at least 6 characters.
-              </p>
+              {errors.password ? (
+                <p className="text-xs text-red-400 mt-1">{errors.password}</p>
+              ) : (
+                <p className="text-xs text-slate-600 mt-1">
+                  At least 8 characters, 1 uppercase, 1 lowercase, 1 number, and 1 special character.
+                </p>
+              )}
             </div>
 
             {/* Submit */}

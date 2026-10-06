@@ -14,11 +14,38 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  const validateEmail = (value: string) => {
+    if (!value) return "Email is required";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Invalid email address";
+    return "";
+  };
+
+  const validatePassword = (value: string) => {
+    if (!value) return "Password is required";
+    return "";
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEmail(value);
+    setErrors(prev => ({ ...prev, email: validateEmail(value) }));
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPassword(value);
+    setErrors(prev => ({ ...prev, password: validatePassword(value) }));
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error("Please enter both email and password.");
+    const emailError = validateEmail(email);
+    const passwordError = validatePassword(password);
+    
+    if (emailError || passwordError) {
+      setErrors({ email: emailError, password: passwordError });
       return;
     }
 
@@ -71,6 +98,7 @@ export default function LoginPage() {
           <form
             onSubmit={handleSignIn}
             className="flex flex-col gap-5"
+            noValidate
           >
             {/* Email */}
             <div className="flex flex-col gap-2">
@@ -92,12 +120,16 @@ export default function LoginPage() {
                   type="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
+                  onChange={handleEmailChange}
                   autoComplete="email"
-                  className="h-12 w-full rounded-xl border border-white/10 bg-black/20 pl-[46px] pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-yellow-400/50 focus:bg-black/30 focus:ring-4 focus:ring-yellow-400/[0.06]"
+                  className={`h-12 w-full rounded-xl border bg-black/20 pl-[46px] pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:bg-black/30 focus:ring-4 ${
+                    errors.email 
+                      ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/10" 
+                      : "border-white/10 focus:border-yellow-400/50 focus:ring-yellow-400/[0.06]"
+                  }`}
                 />
               </div>
+              {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email}</p>}
             </div>
 
             {/* Password */}
@@ -120,10 +152,13 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
+                  onChange={handlePasswordChange}
                   autoComplete="current-password"
-                  className="h-12 w-full rounded-xl border border-white/10 bg-black/20 pl-[46px] pr-12 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-yellow-400/50 focus:bg-black/30 focus:ring-4 focus:ring-yellow-400/[0.06]"
+                  className={`h-12 w-full rounded-xl border bg-black/20 pl-[46px] pr-12 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:bg-black/30 focus:ring-4 ${
+                    errors.password 
+                      ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/10" 
+                      : "border-white/10 focus:border-yellow-400/50 focus:ring-yellow-400/[0.06]"
+                  }`}
                 />
 
                 <button
@@ -141,6 +176,7 @@ export default function LoginPage() {
                   )}
                 </button>
               </div>
+              {errors.password && <p className="text-xs text-red-400 mt-1">{errors.password}</p>}
             </div>
 
             {/* Forgot password */}
