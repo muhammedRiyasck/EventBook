@@ -1,113 +1,181 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Mail, Lock, Eye, EyeOff, CalendarDays } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { useAuth } from '@/context/AuthContext';
-import styles from '../auth.module.css';
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Mail, Lock, Eye, EyeOff, LogIn } from "lucide-react";
+import toast from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      toast.error('Please fill in all fields');
+      toast.error("Please enter both email and password.");
       return;
     }
+
     setLoading(true);
     try {
       await login(email, password);
-      toast.success('Welcome back!');
-      router.push('/dashboard');
+      toast.success("Welcome back!");
+      router.push("/dashboard");
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error?.response?.data?.message || 'Login failed');
+      toast.error(error?.response?.data?.message || "Login failed");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className={styles.page}>
-      <div className={`glow-dot ${styles.blob1}`} />
-      <div className={`glow-dot ${styles.blob2}`} />
+  <div className="min-h-screen [scrollbar-gutter:stable] bg-[#050d1e] px-4 py-10 text-white">
+    {/* Background */}
+    <div className="pointer-events-none fixed inset-0 overflow-hidden">
+      <div className="absolute -right-40 -top-40 h-[520px] w-[520px] rounded-full bg-indigo-500/10 blur-[100px]" />
 
-      <div className={styles.card}>
-        {/* Header */}
-        <div className={styles.header}>
-          <div className={styles.logoMark}>
-            <CalendarDays size={24} />
+      <div className="absolute -bottom-40 -left-40 h-[480px] w-[480px] rounded-full bg-yellow-400/10 blur-[100px]" />
+
+      <div className="absolute left-1/2 top-1/2 h-[700px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-900/10 blur-[100px]" />
+    </div>
+
+    {/* Container */}
+    <div className="relative z-10 flex min-h-[calc(100vh-80px)] items-center justify-center">
+      <div className="w-full max-w-[520px]">
+        {/* Card */}
+        <div className="rounded-3xl border border-white/[0.08] bg-[#0a1628]/75 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:p-10">
+
+          {/* Header */}
+          <div className="mb-8 text-center">
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-yellow-400/20 bg-yellow-400/[0.08] text-yellow-400 shadow-[0_8px_30px_rgba(255,215,0,0.08)]">
+              <LogIn size={22} strokeWidth={2} />
+            </div>
+
+            <h1 className="font-['Outfit'] text-2xl font-extrabold tracking-tight text-white sm:text-[28px]">
+              Welcome back
+            </h1>
+
+            <p className="mt-2 text-sm text-slate-400">
+              Sign in to continue to your EventBook dashboard
+            </p>
           </div>
-          <h1 className={styles.title}>Welcome Back</h1>
-          <p className={styles.subtitle}>Sign in to your EventBook account</p>
+
+          {/* Form */}
+          <form
+            onSubmit={handleSignIn}
+            className="flex flex-col gap-5"
+          >
+            {/* Email */}
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="email"
+                className="text-sm font-medium text-slate-300"
+              >
+                Email Address
+              </label>
+
+              <div className="group relative">
+                <Mail
+                  size={17}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-yellow-400"
+                />
+
+                <input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  className="h-12 w-full rounded-xl border border-white/10 bg-black/20 pl-[46px] pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-yellow-400/50 focus:bg-black/30 focus:ring-4 focus:ring-yellow-400/[0.06]"
+                />
+              </div>
+            </div>
+
+            {/* Password */}
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="password"
+                className="text-sm font-medium text-slate-300"
+              >
+                Password
+              </label>
+
+              <div className="group relative">
+                <Lock
+                  size={17}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-yellow-400"
+                />
+
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className="h-12 w-full rounded-xl border border-white/10 bg-black/20 pl-[46px] pr-12 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:border-yellow-400/50 focus:bg-black/30 focus:ring-4 focus:ring-yellow-400/[0.06]"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={
+                    showPassword ? "Hide password" : "Show password"
+                  }
+                  className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white/5 hover:text-white"
+                >
+                  {showPassword ? (
+                    <EyeOff size={17} className="cursor-pointer" />
+                  ) : (
+                    <Eye size={17} className="cursor-pointer" />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Forgot password */}
+            <div className="-mt-1 flex justify-end">
+              <Link
+                href="#"
+                className="text-sm text-slate-400 transition-colors hover:text-yellow-400"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
+            {/* Submit */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="mt-1 flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-yellow-400 to-yellow-500 text-sm font-semibold text-[#0f1c3f] shadow-[0_0_20px_rgba(255,215,0,0.2)] transition hover:-translate-y-0.5 hover:brightness-105 hover:shadow-[0_0_30px_rgba(255,215,0,0.3)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 cursor-pointer"
+            >
+              {loading ? (
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-[#0f1c3f]/20 border-t-[#0f1c3f]" />
+              ) : (
+                "Sign in"
+              )}
+            </button>
+          </form>
+
+          
         </div>
 
-        <form onSubmit={handleSubmit} className={styles.form} id="login-form">
-          <div className="form-group">
-            <label className="form-label" htmlFor="email">Email Address</label>
-            <div className={styles.inputWrapper}>
-              <Mail size={16} className={styles.inputIcon} />
-              <input
-                id="email"
-                type="email"
-                className={`form-input ${styles.inputWithIcon}`}
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="password">Password</label>
-            <div className={styles.inputWrapper}>
-              <Lock size={16} className={styles.inputIcon} />
-              <input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                className={`form-input ${styles.inputWithIcon} ${styles.inputWithTrailing}`}
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                required
-              />
-              <button
-                type="button"
-                className={styles.eyeBtn}
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label="Toggle password visibility"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-
-          <button
-            id="login-submit-btn"
-            type="submit"
-            className={`btn btn-primary ${styles.submitBtn}`}
-            disabled={loading}
-          >
-            {loading ? <span className={styles.spinner} /> : 'Sign In'}
-          </button>
-        </form>
-
-        <p className={styles.switchText}>
-          Don&apos;t have an account?{' '}
-          <Link href="/register" className={styles.switchLink}>Create one</Link>
+        {/* Bottom text */}
+        <p className="mt-5 text-center text-xs text-slate-600">
+          Secure authentication powered by EventBook
         </p>
       </div>
     </div>
-  );
+  </div>
+);
 }

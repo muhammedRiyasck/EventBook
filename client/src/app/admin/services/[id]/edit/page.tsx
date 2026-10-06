@@ -1,15 +1,14 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
-import toast from 'react-hot-toast';
-import api from '@/lib/api';
-import { Service } from '@/types';
-import { useAuth } from '@/context/AuthContext';
-import ServiceForm from '@/components/services/ServiceForm';
-import styles from './page.module.css';
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
+import toast from "react-hot-toast";
+import api from "@/lib/api";
+import { Service } from "@/types";
+import { useAuth } from "@/context/AuthContext";
+import ServiceForm from "@/components/services/ServiceForm";
 
 export default function EditServicePage() {
   const { id } = useParams<{ id: string }>();
@@ -19,8 +18,8 @@ export default function EditServicePage() {
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) router.push('/login');
-    if (!isLoading && isAuthenticated && !isAdmin) router.push('/dashboard');
+    if (!isLoading && !isAuthenticated) router.push("/login");
+    if (!isLoading && isAuthenticated && !isAdmin) router.push("/dashboard");
   }, [isLoading, isAuthenticated, isAdmin, router]);
 
   useEffect(() => {
@@ -29,8 +28,8 @@ export default function EditServicePage() {
         const { data } = await api.get(`/services/${id}`);
         setService(data.data);
       } catch {
-        toast.error('Failed to load service');
-        router.push('/admin/services');
+        toast.error("Failed to load service");
+        router.push("/admin/services");
       } finally {
         setFetching(false);
       }
@@ -40,7 +39,14 @@ export default function EditServicePage() {
 
   if (isLoading || fetching || !isAdmin) {
     return (
-      <div className="page-wrapper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        className="page-wrapper"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <div className="spinner" />
       </div>
     );
@@ -49,15 +55,19 @@ export default function EditServicePage() {
   if (!service) return null;
 
   return (
-    <div className={`page-wrapper ${styles.page}`}>
+    <div className="page-wrapper pt-[100px] pb-[80px]">
       <div className="container">
-        <Link href="/admin/services" className={styles.back}>
+        <Link
+          href="/admin/services"
+          className="inline-flex items-center gap-1 text-[14px] text-slate-400 mb-6 transition-colors duration-200 hover:text-[var(--gold-400)]"
+        >
           <ChevronLeft size={16} /> Back to Services
         </Link>
-        <div className={styles.header}>
+        <div className="mb-8">
           <h1 className="section-title">Edit Service</h1>
           <p className="section-subtitle" style={{ marginTop: 8 }}>
-            Update the details for <strong style={{ color: 'var(--white)' }}>{service.title}</strong>
+            Update the details for{" "}
+            <strong style={{ color: "var(--white)" }}>{service.title}</strong>
           </p>
         </div>
         <ServiceForm

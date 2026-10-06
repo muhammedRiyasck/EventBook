@@ -4,7 +4,7 @@ export interface User {
   _id: string;
   name: string;
   email: string;
-  role: 'user' | 'admin';
+  role: "user" | "admin";
   phone?: string;
 }
 
@@ -15,13 +15,7 @@ export interface AuthResponse {
 }
 
 export type ServiceCategory =
-  | 'venue'
-  | 'hotel'
-  | 'caterer'
-  | 'cameraman'
-  | 'dj'
-  | 'decorator'
-  | 'other';
+  "venue" | "hotel" | "caterer" | "cameraman" | "dj" | "decorator" | "other";
 
 export interface AvailabilityWindow {
   startDate: string;
@@ -56,7 +50,7 @@ export interface Service {
   updatedAt: string;
 }
 
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
+export type BookingStatus = "pending" | "confirmed" | "cancelled" | "completed";
 
 export interface Booking {
   _id: string;
@@ -67,7 +61,7 @@ export interface Booking {
   totalDays: number;
   totalPrice: number;
   status: BookingStatus;
-  paymentStatus: 'unpaid' | 'paid';
+  paymentStatus: "unpaid" | "paid";
   notes?: string;
   createdAt: string;
   updatedAt: string;
