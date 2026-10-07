@@ -27,75 +27,91 @@ export default function ServiceCard({ service }: Props) {
   const mainImage = service.images?.[0];
 
   return (
-    <Link
-      href={`/services/${service._id}`}
-      className="flex flex-col bg-white/5 border border-white/10 rounded-xl overflow-hidden transition-all duration-300 ease-out cursor-pointer animate-[fadeInUp_0.4s_ease_forwards] group hover:-translate-y-1.5 hover:border-[var(--gold-400)]/30 hover:shadow-[0_12px_40px_rgba(0,0,0,0.5),0_0_20px_rgba(255,215,0,0.1)]"
-      id={`service-card-${service._id}`}
-    >
-      {/* Image */}
-      <div className="relative w-full h-[200px] bg-slate-800 overflow-hidden shrink-0">
-        {mainImage ? (
-          <Image
-            src={mainImage}
-            alt={service.title}
-            fill
-            className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
-            sizes="(max-width: 768px) 100vw, 33vw"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-700">
-            <span className="text-[52px] opacity-60">{categoryIcon}</span>
-          </div>
-        )}
-        <div className="absolute top-3 left-3">
-          <span className={`badge badge-${service.category}`}>
-            {categoryIcon} {service.category}
+  <Link
+    href={`/services/${service._id}`}
+    id={`service-card-${service._id}`}
+    className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.035] backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-yellow-400/25 hover:bg-white/[0.05] hover:shadow-[0_18px_45px_rgba(0,0,0,0.3),0_0_25px_rgba(250,204,21,0.06)]"
+  >
+    {/* Image */}
+    <div className="relative h-[210px] w-full shrink-0 overflow-hidden bg-slate-900">
+      {mainImage ? (
+        <Image
+          src={mainImage}
+          alt={service.title}
+          fill
+          className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900 via-[#0a1628] to-slate-800">
+          <span className="text-[52px] opacity-50">
+            {categoryIcon}
           </span>
         </div>
+      )}
+
+      {/* Image Overlay */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-black/10" />
+
+      {/* Category */}
+      <div className="absolute left-3 top-3">
+        <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-[#050d1e]/75 px-2.5 py-1.5 text-[11px] font-semibold capitalize text-white shadow-lg backdrop-blur-md">
+          <span>{categoryIcon}</span>
+          {service.category}
+        </span>
+      </div>
+    </div>
+
+    {/* Content */}
+    <div className="flex flex-1 flex-col gap-2.5 p-4.5 p-5">
+      {/* Title */}
+      <h3 className="line-clamp-2 text-[15px] font-bold leading-tight text-white transition-colors duration-200 group-hover:text-yellow-300">
+        {service.title}
+      </h3>
+
+      {/* Location */}
+      <div className="flex items-center gap-1.5 text-xs text-slate-400">
+        <MapPin size={13} className="shrink-0 text-slate-500" />
+        <span className="truncate">
+          {service.location.city}, {service.location.state}
+        </span>
       </div>
 
-      {/* Content */}
-      <div className="p-4 flex flex-col gap-2 flex-1">
-        <h3 className="text-[15px] font-bold text-white leading-tight line-clamp-2">
-          {service.title}
-        </h3>
+      {/* Description */}
+      <p className="line-clamp-3 flex-1 text-[13px] leading-relaxed text-slate-400">
+        {service.description.length > 100
+          ? service.description.slice(0, 100) + "…"
+          : service.description}
+      </p>
 
-        <div className="flex items-center gap-1 text-[12px] text-slate-400">
-          <MapPin size={13} />
+      {/* Price / Rating */}
+      <div className="mt-1 flex items-center justify-between border-t border-white/[0.06] pt-3">
+        <div className="flex items-baseline gap-0.5 text-yellow-400">
+          <IndianRupee size={14} />
+          <span className="text-[18px] font-extrabold tracking-tight">
+            {formattedPrice}
+          </span>
+          <span className="ml-0.5 text-xs font-medium text-slate-500">
+            /day
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1 text-xs font-semibold text-yellow-400">
+          <Star size={13} fill="currentColor" />
           <span>
-            {service.location.city}, {service.location.state}
+            {service.rating > 0 ? service.rating.toFixed(1) : "New"}
           </span>
         </div>
-
-        <p className="text-[13px] text-slate-400 leading-relaxed flex-1">
-          {service.description.length > 100
-            ? service.description.slice(0, 100) + "…"
-            : service.description}
-        </p>
-
-        <div className="flex items-center justify-between mt-1 pt-3 border-t border-white/5">
-          <div className="flex items-center gap-0.5 text-[var(--gold-400)]">
-            <IndianRupee size={14} />
-            <span className="text-[18px] font-extrabold font-display">
-              {formattedPrice}
-            </span>
-            <span className="text-[12px] text-slate-400 ml-0.5">/day</span>
-          </div>
-          <div className="flex items-center gap-1 text-[13px] font-semibold text-[var(--gold-400)]">
-            <Star size={13} fill="currentColor" />
-            <span>
-              {service.rating > 0 ? service.rating.toFixed(1) : "New"}
-            </span>
-          </div>
-        </div>
-
-        {service.availability?.some((a) => !a.isBooked) && (
-          <div className="flex items-center gap-1.5 text-[11px] text-green-500 py-1 px-2 bg-green-500/10 rounded-full w-fit">
-            <Calendar size={12} />
-            <span>Available for booking</span>
-          </div>
-        )}
       </div>
-    </Link>
-  );
+
+      {/* Availability */}
+      {service.availability?.some((a) => !a.isBooked) && (
+        <div className="flex w-fit items-center gap-1.5 rounded-full border border-emerald-400/10 bg-emerald-400/[0.07] px-2.5 py-1 text-[11px] font-medium text-emerald-400">
+          <Calendar size={12} />
+          <span>Available for booking</span>
+        </div>
+      )}
+    </div>
+  </Link>
+);
 }

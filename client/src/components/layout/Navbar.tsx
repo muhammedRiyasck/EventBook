@@ -69,7 +69,7 @@ export default function Navbar() {
           {isAdmin && (
             <Link
               href="/admin/dashboard"
-              className={`px-[14px] py-[6px] rounded-full text-[14px] font-medium text-slate-300 transition-colors duration-200 hover:text-white hover:bg-white/10 ${pathname.startsWith("/admin") ? "!text-[var(--gold-400)] !bg-[#ffd700]/10" : ""}`}
+              className={`px-[14px] py-[6px] rounded-full text-[14px] font-medium outline mx-2  text-slate-300 transition-colors duration-200 text-yellow-600 hover:text-white hover:bg-white/10 ${pathname.startsWith("/admin") ? "!text-[var(--gold-400)] !bg-[#ffd700]/10" : ""}`}
             >
               Admin Panel
             </Link>

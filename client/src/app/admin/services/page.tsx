@@ -65,100 +65,142 @@ export default function AdminServicesPage() {
     );
 
   return (
-    <div className="page-wrapper pt-[100px] pb-[80px]">
-      <div className="container">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="section-title">Manage Services</h1>
-          <Link
-            href="/admin/services/new"
-            className="btn btn-primary"
-            id="new-service-btn"
-          >
-            <Plus size={16} /> Add Service
-          </Link>
+  <div className="min-h-screen overflow-hidden bg-[#050d1e] px-4 pb-20 pt-[100px] text-white sm:px-6">
+    {/* Background Glow */}
+    <div className="pointer-events-none fixed inset-0 overflow-hidden">
+      <div className="absolute -right-40 -top-40 h-[600px] w-[600px] rounded-full bg-indigo-500/[0.08] blur-[120px]" />
+      <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-yellow-400/[0.05] blur-[120px]" />
+      <div className="absolute left-1/2 top-1/3 h-[500px] w-[300px] -translate-x-1/2 rounded-full bg-blue-500/[0.03] blur-[100px]" />
+    </div>
+
+    <div className="relative z-10 mx-auto w-full max-w-7xl">
+      {/* Header */}
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-yellow-400">
+            Administration
+          </p>
+
+          <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+            Manage Services
+          </h1>
+
+          <p className="mt-2 text-sm text-slate-500">
+            Add, edit, and manage services on your platform
+          </p>
         </div>
 
-        {loading ? (
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              padding: "60px 0",
-            }}
+        <Link
+          href="/admin/services/new"
+          id="new-service-btn"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 text-sm font-bold text-[#050d1e] shadow-[0_8px_25px_rgba(250,204,21,0.1)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-yellow-300 hover:shadow-[0_12px_30px_rgba(250,204,21,0.18)]"
+        >
+          <Plus size={16} />
+          Add Service
+        </Link>
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="flex min-h-[300px] items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.035] backdrop-blur-xl">
+          <div className="h-9 w-9 animate-spin rounded-full border-2 border-white/10 border-t-yellow-400" />
+        </div>
+      ) : services.length === 0 ? (
+        <div className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.035] px-6 text-center backdrop-blur-xl">
+          <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-yellow-400/10 bg-yellow-400/[0.06] text-3xl">
+            🏛️
+          </div>
+
+          <h3 className="text-xl font-bold text-white">
+            No services yet
+          </h3>
+
+          <p className="mt-2 max-w-md text-sm text-slate-500">
+            You haven&apos;t added any services yet. Create your first service
+            to start listing it on the platform.
+          </p>
+
+          <Link
+            href="/admin/services/new"
+            className="mt-6 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 text-sm font-bold text-[#050d1e] transition-all duration-200 hover:-translate-y-0.5 hover:bg-yellow-300"
           >
-            <div className="spinner" />
+            <Plus size={16} />
+            Add Your First Service
+          </Link>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {/* Desktop Header */}
+          <div className="hidden grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4 rounded-xl border border-white/[0.08] bg-white/[0.025] px-5 py-3.5 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 backdrop-blur-xl lg:grid">
+            <span>Service</span>
+            <span>Category</span>
+            <span>Location</span>
+            <span>Price / Day</span>
+            <span>Actions</span>
           </div>
-        ) : services.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">🏛️</div>
-            <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
-              No services yet
-            </h3>
-            <Link
-              href="/admin/services/new"
-              className="btn btn-primary"
-              style={{ marginTop: 20 }}
+
+          {services.map((svc) => (
+            <div
+              key={svc._id}
+              id={`admin-service-${svc._id}`}
+              className="group rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl transition-all duration-200 hover:border-white/[0.12] hover:bg-white/[0.05] hover:shadow-[0_12px_35px_rgba(0,0,0,0.18)] lg:grid lg:grid-cols-[2fr_1fr_1fr_1fr_1.5fr] lg:items-center lg:gap-4 lg:rounded-xl lg:p-5"
             >
-              Add your first service
-            </Link>
-          </div>
-        ) : (
-          <div className="bg-white/2 border border-white/10 rounded-lg overflow-hidden lg:bg-white/2 lg:border-white/10 max-lg:bg-transparent max-lg:border-none max-lg:overflow-visible">
-            <div className="hidden lg:grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4 py-3.5 px-5 bg-white/4 border-b border-white/10 text-[12px] font-bold text-slate-400 uppercase tracking-wider">
-              <span>Service</span>
-              <span>Category</span>
-              <span>Location</span>
-              <span>Price/Day</span>
-              <span>Actions</span>
-            </div>
-            {services.map((svc) => (
-              <div
-                key={svc._id}
-                className="grid grid-cols-1 lg:grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4 py-4 px-5 border-b border-white/4 items-center transition-colors duration-150 animate-[fadeIn_0.3s_ease] last:border-b-0 hover:bg-white/3 max-lg:border max-lg:border-white/10 max-lg:rounded-md max-lg:mb-3"
-                id={`admin-service-${svc._id}`}
-              >
-                <div className="flex flex-col gap-1">
-                  <span className="text-[14px] font-semibold text-white">
-                    {svc.title}
-                  </span>
-                  <span className="text-[12px] text-slate-500">
-                    {svc.description.slice(0, 60)}…
-                  </span>
+              {/* Service */}
+              <div className="min-w-0">
+                <div className="text-[15px] font-bold text-white">
+                  {svc.title}
                 </div>
-                <div>
-                  <span className={`badge badge-${svc.category}`}>
+
+                <p className="mt-1 line-clamp-1 text-xs text-slate-500">
+                  {svc.description.slice(0, 60)}…
+                </p>
+              </div>
+
+              {/* Category */}
+              <div className="mt-4 lg:mt-0">
+                  <span className="inline-flex items-center rounded-lg border border-purple-400/15 bg-purple-400/10 px-2.5 py-1 text-xs font-semibold capitalize text-purple-400">
                     {svc.category}
                   </span>
-                </div>
-                <div className="flex items-center gap-1 text-[13px] text-slate-400">
-                  <MapPin size={12} /> {svc.location.city}
-                </div>
-                <div className="flex items-center gap-0.5 text-[14px] font-bold text-[var(--gold-400)]">
-                  <IndianRupee size={13} />
-                  {new Intl.NumberFormat("en-IN").format(svc.pricePerDay)}
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <Link
-                    href={`/admin/services/${svc._id}/edit`}
-                    className="btn btn-secondary btn-sm"
-                    id={`edit-service-${svc._id}`}
-                  >
-                    <Edit2 size={13} /> Edit
-                  </Link>
-                  <button
-                    id={`delete-service-${svc._id}`}
-                    className="btn btn-danger btn-sm"
-                    onClick={() => handleDelete(svc._id, svc.title)}
-                    disabled={deleting === svc._id}
-                  >
-                    <Trash2 size={13} /> {deleting === svc._id ? "…" : "Remove"}
-                  </button>
-                </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+
+              {/* Location */}
+              <div className="mt-3 flex items-center gap-1.5 text-sm text-slate-400 lg:mt-0">
+                <MapPin size={14} className="shrink-0 text-slate-500" />
+                <span>{svc.location.city}</span>
+              </div>
+
+              {/* Price */}
+              <div className="mt-3 flex items-center gap-0.5 text-sm font-bold text-yellow-400 lg:mt-0">
+                <IndianRupee size={14} />
+                {new Intl.NumberFormat("en-IN").format(svc.pricePerDay)}
+              </div>
+
+              {/* Actions */}
+              <div className="mt-5 flex flex-wrap gap-2 border-t border-white/[0.06] pt-4 lg:mt-0 lg:border-0 lg:pt-0">
+                <Link
+                  href={`/admin/services/${svc._id}/edit`}
+                  id={`edit-service-${svc._id}`}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3.5 text-xs font-semibold text-slate-300 transition-all duration-200 hover:border-blue-400/20 hover:bg-blue-400/10 hover:text-blue-300"
+                >
+                  <Edit2 size={13} />
+                  Edit
+                </Link>
+
+                <button
+                  id={`delete-service-${svc._id}`}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-red-400/10 bg-red-400/[0.05] px-3.5 text-xs font-semibold text-red-400 transition-all duration-200 hover:border-red-400/20 hover:bg-red-400/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => handleDelete(svc._id, svc.title)}
+                  disabled={deleting === svc._id}
+                >
+                  <Trash2 size={13} />
+                  {deleting === svc._id ? "…" : "Remove"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
 }
