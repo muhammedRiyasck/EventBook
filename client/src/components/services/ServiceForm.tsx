@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { Upload, X, Plus, IndianRupee } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
+import {
+  validateServiceField,
+  validateServiceForm,
+  ServiceFormState,
+} from "@/utils/serviceValidation";
 
 const CATEGORIES = [
   "venue",
@@ -44,6 +49,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
   const [keepImages] = useState<string[]>(initialData?.images || []);
   const [tagInput, setTagInput] = useState("");
   const [amenityInput, setAmenityInput] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const [form, setForm] = useState({
     title: initialData?.title || "",
@@ -69,7 +75,13 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >,
   ) => {
-    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setForm((p) => {
+      const newForm = { ...p, [name]: value };
+      const error = validateServiceField(name, value, newForm);
+      setErrors((prev) => ({ ...prev, [name]: error }));
+      return newForm;
+    });
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,31 +124,21 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
   };
 
   const removeAmenity = (amenity: string) =>
-    setForm((p) => ({ ...p, amenities: p.amenities.filter((a) => a !== amenity) }));
+    setForm((p) => ({
+      ...p,
+      amenities: p.amenities.filter((a) => a !== amenity),
+    }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (
-      !form.title ||
-      !form.description ||
-      !form.pricePerDay ||
-      !form.phone ||
-      !form.email ||
-      !form.city ||
-      !form.state ||
-      !form.address
-    ) {
-      toast.error("Please fill in all required fields");
+
+    const validationErrors = validateServiceForm(form as unknown as ServiceFormState);
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      toast.error("Please fix the errors in the form");
       return;
     }
-    if (form.phone && !/^\d{10}$/.test(form.phone)) {
-      toast.error("Please enter a valid 10-digit phone number");
-      return;
-    }
-    if (Number(form.pricePerDay) <= 0) {
-      toast.error("Price must be greater than 0");
-      return;
-    }
+
     setLoading(true);
     try {
       const formData = new FormData();
@@ -166,8 +168,10 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
       }
       if (form.capacity) formData.append("capacity", form.capacity);
       if (form.pricingUnit) formData.append("pricingUnit", form.pricingUnit);
-      if (form.cancellationPolicy) formData.append("cancellationPolicy", form.cancellationPolicy);
-      if (form.amenities.length > 0) formData.append("amenities", JSON.stringify(form.amenities));
+      if (form.cancellationPolicy)
+        formData.append("cancellationPolicy", form.cancellationPolicy);
+      if (form.amenities.length > 0)
+        formData.append("amenities", JSON.stringify(form.amenities));
 
       if (mode === "edit")
         formData.append("keepImages", JSON.stringify(keepImages));
@@ -194,546 +198,566 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
   };
 
   return (
-  <form
-    onSubmit={handleSubmit}
-    className="flex flex-col gap-6"
-    id="service-form"
-  >
-    {/* Basic Info */}
-    <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
-      <div className="border-b border-white/[0.08] pb-4">
-        <h3 className="text-[15px] font-bold text-white">
-          Basic Information
-        </h3>
-        <p className="mt-1 text-xs text-slate-500">
-          Add the main details of your service.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        <div>
-          <label
-            htmlFor="title"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            Service Title <span className="text-yellow-400">*</span>
-          </label>
-
-          <input
-            id="title"
-            name="title"
-            type="text"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-            placeholder="e.g. Royal Garden Venue"
-            value={form.title}
-            onChange={handleChange}
-            required
-            minLength={3}
-          />
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-6"
+      id="service-form"
+    >
+      {/* Basic Info */}
+      <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
+        <div className="border-b border-white/[0.08] pb-4">
+          <h3 className="text-[15px] font-bold text-white">
+            Basic Information
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Add the main details of your service.
+          </p>
         </div>
 
-        <div>
-          <label
-            htmlFor="category"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            Category <span className="text-yellow-400">*</span>
-          </label>
-
-          <select
-            id="category"
-            name="category"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0a1628] px-4 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
-            value={form.category}
-            onChange={handleChange}
-            required
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c.charAt(0).toUpperCase() + c.slice(1)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {form.category === "other" && (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div>
             <label
-              htmlFor="customCategory"
+              htmlFor="title"
               className="mb-2 block text-sm font-medium text-slate-300"
             >
-              Specify Category <span className="text-yellow-400">*</span>
+              Service Title <span className="text-yellow-400">*</span>
             </label>
+
             <input
-              id="customCategory"
-              name="customCategory"
+              id="title"
+              name="title"
               type="text"
-              className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-              placeholder="e.g. Makeup Artist"
-              value={form.customCategory}
+              className={`h-11 w-full rounded-xl border ${errors.title ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+              placeholder="e.g. Royal Garden Venue"
+              value={form.title}
               onChange={handleChange}
-              required
             />
+            {errors.title && (
+              <p className="mt-1 text-xs text-red-400">{errors.title}</p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="category"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Category <span className="text-yellow-400">*</span>
+            </label>
+
+            <select
+              id="category"
+              name="category"
+              className={`h-11 w-full rounded-xl border ${errors.category ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-[#0a1628] px-4 text-sm text-white outline-none transition-all focus:ring-2`}
+              value={form.category}
+              onChange={handleChange}
+            >
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c.charAt(0).toUpperCase() + c.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {form.category === "other" && (
+            <div>
+              <label
+                htmlFor="customCategory"
+                className="mb-2 block text-sm font-medium text-slate-300"
+              >
+                Specify Category <span className="text-yellow-400">*</span>
+              </label>
+              <input
+                id="customCategory"
+                name="customCategory"
+                type="text"
+                className={`h-11 w-full rounded-xl border ${errors.customCategory ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+                placeholder="e.g. Makeup Artist"
+                value={form.customCategory}
+                onChange={handleChange}
+              />
+              {errors.customCategory && (
+                <p className="mt-1 text-xs text-red-400">
+                  {errors.customCategory}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <label
+            htmlFor="description"
+            className="mb-2 block text-sm font-medium text-slate-300"
+          >
+            Description <span className="text-yellow-400">*</span>
+          </label>
+
+          <textarea
+            id="description"
+            name="description"
+            className={`min-h-[120px] w-full resize-y rounded-xl border ${errors.description ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 py-3 text-sm leading-6 text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+            rows={4}
+            placeholder="Describe your service in detail…"
+            value={form.description}
+            onChange={handleChange}
+          />
+          {errors.description && (
+            <p className="mt-1 text-xs text-red-400">{errors.description}</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div>
+            <label
+              htmlFor="pricePerDay"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Base Price (₹) <span className="text-yellow-400">*</span>
+            </label>
+
+            <div className="relative flex gap-2">
+              <div className="relative flex-1">
+                <IndianRupee
+                  size={15}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                />
+                <input
+                  id="pricePerDay"
+                  name="pricePerDay"
+                  type="number"
+                  className={`h-11 w-full rounded-xl border ${errors.pricePerDay ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] pl-10 pr-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+                  placeholder="25000"
+                  value={form.pricePerDay}
+                  onChange={handleChange}
+                />
+              </div>
+              <select
+                name="pricingUnit"
+                className="h-11 w-32 rounded-xl border border-white/[0.08] bg-[#0a1628] px-3 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
+                value={form.pricingUnit}
+                onChange={handleChange}
+              >
+                <option value="per_day">Per Day</option>
+                <option value="per_hour">Per Hour</option>
+                <option value="per_person">Per Person</option>
+                <option value="per_project">Per Project</option>
+              </select>
+            </div>
+            {errors.pricePerDay && (
+              <p className="mt-1 text-xs text-red-400">{errors.pricePerDay}</p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="capacity"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Capacity / Guest Limit{" "}
+              <span className="text-slate-600">(optional)</span>
+            </label>
+
+            <input
+              id="capacity"
+              name="capacity"
+              type="number"
+              className={`h-11 w-full rounded-xl border ${errors.capacity ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+              placeholder="e.g. 500"
+              value={form.capacity}
+              onChange={handleChange}
+            />
+            {errors.capacity && (
+              <p className="mt-1 text-xs text-red-400">{errors.capacity}</p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="cancellationPolicy"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Cancellation Policy{" "}
+              <span className="text-slate-600">(optional)</span>
+            </label>
+
+            <select
+              id="cancellationPolicy"
+              name="cancellationPolicy"
+              className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0a1628] px-4 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
+              value={form.cancellationPolicy}
+              onChange={handleChange}
+            >
+              <option value="">Select a policy...</option>
+              <option value="Flexible">
+                Flexible (Free cancellation up to 48h)
+              </option>
+              <option value="Moderate">
+                Moderate (Free cancellation up to 7 days)
+              </option>
+              <option value="Strict">Strict (No refund)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Location */}
+      <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
+        <div className="border-b border-white/[0.08] pb-4">
+          <h3 className="text-[15px] font-bold text-white">Location</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Where is this service located?
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+          <div>
+            <label
+              htmlFor="city"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              City <span className="text-yellow-400">*</span>
+            </label>
+
+            <input
+              id="city"
+              name="city"
+              type="text"
+              className={`h-11 w-full rounded-xl border ${errors.city ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+              placeholder="Mumbai"
+              value={form.city}
+              onChange={handleChange}
+            />
+            {errors.city && (
+              <p className="mt-1 text-xs text-red-400">{errors.city}</p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="state"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              State <span className="text-yellow-400">*</span>
+            </label>
+
+            <input
+              id="state"
+              name="state"
+              type="text"
+              className={`h-11 w-full rounded-xl border ${errors.state ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+              placeholder="Maharashtra"
+              value={form.state}
+              onChange={handleChange}
+            />
+            {errors.state && (
+              <p className="mt-1 text-xs text-red-400">{errors.state}</p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="address"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Address <span className="text-yellow-400">*</span>
+            </label>
+
+            <input
+              id="address"
+              name="address"
+              type="text"
+              className={`h-11 w-full rounded-xl border ${errors.address ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+              placeholder="123 Main St"
+              value={form.address}
+              onChange={handleChange}
+            />
+            {errors.address && (
+              <p className="mt-1 text-xs text-red-400">{errors.address}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Contact */}
+      <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
+        <div className="border-b border-white/[0.08] pb-4">
+          <h3 className="text-[15px] font-bold text-white">Contact Details</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Add contact information customers can use.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+          <div>
+            <label
+              htmlFor="phone"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Phone <span className="text-yellow-400">*</span>
+            </label>
+
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              className={`h-11 w-full rounded-xl border ${errors.phone ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+              placeholder="e.g. 9876543210"
+              value={form.phone}
+              onChange={handleChange}
+            />
+            {errors.phone && (
+              <p className="mt-1 text-xs text-red-400">{errors.phone}</p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="email"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Email <span className="text-yellow-400">*</span>
+            </label>
+
+            <input
+              id="email"
+              name="email"
+              type="email"
+              className={`h-11 w-full rounded-xl border ${errors.email ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+              placeholder="service@email.com"
+              value={form.email}
+              onChange={handleChange}
+            />
+            {errors.email && (
+              <p className="mt-1 text-xs text-red-400">{errors.email}</p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="website"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Website <span className="text-slate-600">(optional)</span>
+            </label>
+
+            <input
+              id="website"
+              name="website"
+              type="url"
+              className={`h-11 w-full rounded-xl border ${errors.website ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+              placeholder="https://example.com"
+              value={form.website}
+              onChange={handleChange}
+            />
+            {errors.website && (
+              <p className="mt-1 text-xs text-red-400">{errors.website}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Tags */}
+      <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
+        <div className="border-b border-white/[0.08] pb-4">
+          <h3 className="text-[15px] font-bold text-white">Tags</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Add tags to help customers discover your service.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input
+            type="text"
+            className="h-11 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
+            placeholder="Add a tag (e.g. luxury, outdoor)"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addTag();
+              }
+            }}
+          />
+
+          <button
+            type="button"
+            className="inline-flex h-11 cursor-pointer shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-yellow-400/20 hover:bg-yellow-400/[0.06] hover:text-yellow-400"
+            onClick={addTag}
+          >
+            <Plus size={14} />
+            Add
+          </button>
+        </div>
+
+        {form.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {form.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/15 bg-yellow-400/[0.07] px-3 py-1.5 text-xs font-medium text-yellow-400"
+              >
+                #{tag}
+                <button
+                  type="button"
+                  onClick={() => removeTag(tag)}
+                  className="flex items-center text-yellow-400/50 transition-colors duration-150 hover:text-red-400"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
           </div>
         )}
       </div>
 
-      <div>
+      {/* Amenities */}
+      <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
+        <div className="border-b border-white/[0.08] pb-4">
+          <h3 className="text-[15px] font-bold text-white">
+            Amenities & Features
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            List the amenities or features you provide (e.g., WiFi, AC,
+            Parking).
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input
+            type="text"
+            className="h-11 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
+            placeholder="Add an amenity (e.g. AC, Parking)"
+            value={amenityInput}
+            onChange={(e) => setAmenityInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addAmenity();
+              }
+            }}
+          />
+
+          <button
+            type="button"
+            className="inline-flex h-11 cursor-pointer shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-yellow-400/20 hover:bg-yellow-400/[0.06] hover:text-yellow-400"
+            onClick={addAmenity}
+          >
+            <Plus size={14} />
+            Add
+          </button>
+        </div>
+
+        {form.amenities.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {form.amenities.map((amenity) => (
+              <span
+                key={amenity}
+                className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/15 bg-blue-400/[0.07] px-3 py-1.5 text-xs font-medium text-blue-400"
+              >
+                ✓ {amenity}
+                <button
+                  type="button"
+                  onClick={() => removeAmenity(amenity)}
+                  className="flex items-center text-blue-400/50 transition-colors duration-150 hover:text-red-400"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Images */}
+      <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
+        <div className="border-b border-white/[0.08] pb-4">
+          <h3 className="text-[15px] font-bold text-white">
+            Images <span className="text-slate-500">(max 5)</span>
+          </h3>
+
+          <p className="mt-1 text-xs text-slate-500">
+            Upload JPEG, PNG, or WebP images up to 5MB each.
+          </p>
+        </div>
+
         <label
-          htmlFor="description"
-          className="mb-2 block text-sm font-medium text-slate-300"
+          htmlFor="image-upload"
+          className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-10 text-center text-sm text-slate-500 transition-all duration-200 hover:border-yellow-400/30 hover:bg-yellow-400/[0.025] hover:text-yellow-400"
         >
-          Description <span className="text-yellow-400">*</span>
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04]">
+            <Upload size={22} />
+          </div>
+
+          <div>
+            <p className="font-medium text-slate-300">Click to upload images</p>
+            <p className="mt-1 text-xs text-slate-600">
+              JPEG, PNG, WebP · Max 5MB each
+            </p>
+          </div>
+
+          <input
+            id="image-upload"
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleImageChange}
+          />
         </label>
 
-        <textarea
-          id="description"
-          name="description"
-          className="min-h-[120px] w-full resize-y rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm leading-6 text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-          rows={4}
-          placeholder="Describe your service in detail…"
-          value={form.description}
-          onChange={handleChange}
-          required
-          minLength={10}
-        />
-      </div>
+        {previews.length > 0 && (
+          <div className="flex flex-wrap gap-3">
+            {previews.map((src, i) => (
+              <div
+                key={i}
+                className="group relative h-24 w-28 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03]"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={src}
+                  alt={`Preview ${i + 1}`}
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-        <div>
-          <label
-            htmlFor="pricePerDay"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            Base Price (₹) <span className="text-yellow-400">*</span>
-          </label>
-
-          <div className="relative flex gap-2">
-            <div className="relative flex-1">
-              <IndianRupee
-                size={15}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
-              />
-              <input
-                id="pricePerDay"
-                name="pricePerDay"
-                type="number"
-                className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] pl-10 pr-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-                placeholder="25000"
-                value={form.pricePerDay}
-                onChange={handleChange}
-                min="1"
-                required
-              />
-            </div>
-            <select
-              name="pricingUnit"
-              className="h-11 w-32 rounded-xl border border-white/[0.08] bg-[#0a1628] px-3 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
-              value={form.pricingUnit}
-              onChange={handleChange}
-            >
-              <option value="per_day">Per Day</option>
-              <option value="per_hour">Per Hour</option>
-              <option value="per_person">Per Person</option>
-              <option value="per_project">Per Project</option>
-            </select>
+                <button
+                  type="button"
+                  className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white backdrop-blur-sm transition-colors duration-150 hover:bg-red-500"
+                  onClick={() => removeImage(i)}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
           </div>
-        </div>
-
-        <div>
-          <label
-            htmlFor="capacity"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            Capacity / Guest Limit <span className="text-slate-600">(optional)</span>
-          </label>
-
-          <input
-            id="capacity"
-            name="capacity"
-            type="number"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-            placeholder="e.g. 500"
-            value={form.capacity}
-            onChange={handleChange}
-            min="1"
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="cancellationPolicy"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            Cancellation Policy <span className="text-slate-600">(optional)</span>
-          </label>
-
-          <select
-            id="cancellationPolicy"
-            name="cancellationPolicy"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0a1628] px-4 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
-            value={form.cancellationPolicy}
-            onChange={handleChange}
-          >
-            <option value="">Select a policy...</option>
-            <option value="Flexible">Flexible (Free cancellation up to 48h)</option>
-            <option value="Moderate">Moderate (Free cancellation up to 7 days)</option>
-            <option value="Strict">Strict (No refund)</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
-    {/* Location */}
-    <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
-      <div className="border-b border-white/[0.08] pb-4">
-        <h3 className="text-[15px] font-bold text-white">Location</h3>
-        <p className="mt-1 text-xs text-slate-500">
-          Where is this service located?
-        </p>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-        <div>
-          <label
-            htmlFor="city"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            City <span className="text-yellow-400">*</span>
-          </label>
-
-          <input
-            id="city"
-            name="city"
-            type="text"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-            placeholder="Mumbai"
-            value={form.city}
-            onChange={handleChange}
-            required
-            minLength={2}
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="state"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            State <span className="text-yellow-400">*</span>
-          </label>
-
-          <input
-            id="state"
-            name="state"
-            type="text"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-            placeholder="Maharashtra"
-            value={form.state}
-            onChange={handleChange}
-            required
-            minLength={2}
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="address"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            Address <span className="text-yellow-400">*</span>
-          </label>
-
-          <input
-            id="address"
-            name="address"
-            type="text"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-            placeholder="123 Main St"
-            value={form.address}
-            onChange={handleChange}
-            required
-            minLength={5}
-          />
-        </div>
-      </div>
-    </div>
-
-    {/* Contact */}
-    <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
-      <div className="border-b border-white/[0.08] pb-4">
-        <h3 className="text-[15px] font-bold text-white">
-          Contact Details
-        </h3>
-        <p className="mt-1 text-xs text-slate-500">
-          Add contact information customers can use.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-        <div>
-          <label
-            htmlFor="phone"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            Phone <span className="text-yellow-400">*</span>
-          </label>
-
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-            placeholder="e.g. 9876543210"
-            value={form.phone}
-            onChange={handleChange}
-            pattern="[0-9]{10}"
-            title="Please enter a valid 10-digit phone number"
-            required
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="email"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            Email <span className="text-yellow-400">*</span>
-          </label>
-
-          <input
-            id="email"
-            name="email"
-            type="email"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-            placeholder="service@email.com"
-            value={form.email}
-            onChange={handleChange}
-            required
-          />
-        </div>
-
-        <div>
-          <label
-            htmlFor="website"
-            className="mb-2 block text-sm font-medium text-slate-300"
-          >
-            Website <span className="text-slate-600">(optional)</span>
-          </label>
-
-          <input
-            id="website"
-            name="website"
-            type="url"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-            placeholder="https://example.com"
-            value={form.website}
-            onChange={handleChange}
-          />
-        </div>
-      </div>
-    </div>
-
-    {/* Tags */}
-    <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
-      <div className="border-b border-white/[0.08] pb-4">
-        <h3 className="text-[15px] font-bold text-white">Tags</h3>
-        <p className="mt-1 text-xs text-slate-500">
-          Add tags to help customers discover your service.
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <input
-          type="text"
-          className="h-11 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-          placeholder="Add a tag (e.g. luxury, outdoor)"
-          value={tagInput}
-          onChange={(e) => setTagInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addTag();
-            }
-          }}
-        />
-
+      {/* Submit */}
+      <div className="flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:justify-end">
         <button
           type="button"
-          className="inline-flex h-11 cursor-pointer shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-yellow-400/20 hover:bg-yellow-400/[0.06] hover:text-yellow-400"
-          onClick={addTag}
+          className="inline-flex cursor-pointer h-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-6 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-white/[0.14] hover:bg-white/[0.07] hover:text-white"
+          onClick={() => router.back()}
         >
-          <Plus size={14} />
-          Add
+          Cancel
         </button>
-      </div>
-
-      {form.tags.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {form.tags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/15 bg-yellow-400/[0.07] px-3 py-1.5 text-xs font-medium text-yellow-400"
-            >
-              #{tag}
-
-              <button
-                type="button"
-                onClick={() => removeTag(tag)}
-                className="flex items-center text-yellow-400/50 transition-colors duration-150 hover:text-red-400"
-              >
-                <X size={11} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-
-    {/* Amenities */}
-    <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
-      <div className="border-b border-white/[0.08] pb-4">
-        <h3 className="text-[15px] font-bold text-white">Amenities & Features</h3>
-        <p className="mt-1 text-xs text-slate-500">
-          List the amenities or features you provide (e.g., WiFi, AC, Parking).
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <input
-          type="text"
-          className="h-11 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-          placeholder="Add an amenity (e.g. AC, Parking)"
-          value={amenityInput}
-          onChange={(e) => setAmenityInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addAmenity();
-            }
-          }}
-        />
 
         <button
-          type="button"
-          className="inline-flex h-11 cursor-pointer shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-yellow-400/20 hover:bg-yellow-400/[0.06] hover:text-yellow-400"
-          onClick={addAmenity}
+          id="service-submit-btn"
+          type="submit"
+          className="inline-flex h-11 items-center justify-center rounded-xl bg-yellow-400 px-6 cursor-pointer text-sm font-bold text-[#050d1e] shadow-[0_8px_25px_rgba(250,204,21,0.1)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-yellow-300 hover:shadow-[0_12px_30px_rgba(250,204,21,0.18)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+          disabled={loading}
         >
-          <Plus size={14} />
-          Add
+          {loading
+            ? "Saving…"
+            : mode === "create"
+              ? "Create Service"
+              : "Save Changes"}
         </button>
       </div>
-
-      {form.amenities.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {form.amenities.map((amenity) => (
-            <span
-              key={amenity}
-              className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/15 bg-blue-400/[0.07] px-3 py-1.5 text-xs font-medium text-blue-400"
-            >
-              ✓ {amenity}
-
-              <button
-                type="button"
-                onClick={() => removeAmenity(amenity)}
-                className="flex items-center text-blue-400/50 transition-colors duration-150 hover:text-red-400"
-              >
-                <X size={11} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-
-    {/* Images */}
-    <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
-      <div className="border-b border-white/[0.08] pb-4">
-        <h3 className="text-[15px] font-bold text-white">
-          Images <span className="text-slate-500">(max 5)</span>
-        </h3>
-
-        <p className="mt-1 text-xs text-slate-500">
-          Upload JPEG, PNG, or WebP images up to 5MB each.
-        </p>
-      </div>
-
-      <label
-        htmlFor="image-upload"
-        className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-10 text-center text-sm text-slate-500 transition-all duration-200 hover:border-yellow-400/30 hover:bg-yellow-400/[0.025] hover:text-yellow-400"
-      >
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04]">
-          <Upload size={22} />
-        </div>
-
-        <div>
-          <p className="font-medium text-slate-300">
-            Click to upload images
-          </p>
-          <p className="mt-1 text-xs text-slate-600">
-            JPEG, PNG, WebP · Max 5MB each
-          </p>
-        </div>
-
-        <input
-          id="image-upload"
-          type="file"
-          multiple
-          accept="image/jpeg,image/png,image/webp"
-          className="hidden"
-          onChange={handleImageChange}
-        />
-      </label>
-
-      {previews.length > 0 && (
-        <div className="flex flex-wrap gap-3">
-          {previews.map((src, i) => (
-            <div
-              key={i}
-              className="group relative h-24 w-28 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03]"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={src}
-                alt={`Preview ${i + 1}`}
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-
-              <button
-                type="button"
-                className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white backdrop-blur-sm transition-colors duration-150 hover:bg-red-500"
-                onClick={() => removeImage(i)}
-              >
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-
-    {/* Submit */}
-    <div className="flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:justify-end">
-      <button
-        type="button"
-        className="inline-flex cursor-pointer h-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-6 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-white/[0.14] hover:bg-white/[0.07] hover:text-white"
-        onClick={() => router.back()}
-      >
-        Cancel
-      </button>
-
-      <button
-        id="service-submit-btn"
-        type="submit"
-        className="inline-flex h-11 items-center justify-center rounded-xl bg-yellow-400 px-6 cursor-pointer text-sm font-bold text-[#050d1e] shadow-[0_8px_25px_rgba(250,204,21,0.1)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-yellow-300 hover:shadow-[0_12px_30px_rgba(250,204,21,0.18)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
-        disabled={loading}
-      >
-        {loading
-          ? "Saving…"
-          : mode === "create"
-            ? "Create Service"
-            : "Save Changes"}
-      </button>
-    </div>
-  </form>
-  )}
+    </form>
+  );
+}
