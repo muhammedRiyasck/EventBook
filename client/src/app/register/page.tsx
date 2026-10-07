@@ -22,13 +22,15 @@ export default function RegisterPage() {
     name: "",
     email: "",
     password: "",
+    confirmPassword: "",
     phone: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  const validateField = (name: string, value: string) => {
+  const validateField = (name: string, value: string, currentForm: typeof form) => {
     switch (name) {
       case "name":
         return value.trim().length < 3 ? "Name must be at least 3 characters" : "";
@@ -41,6 +43,10 @@ export default function RegisterPage() {
           return "Password must be at least 8 characters, include an uppercase letter, a lowercase letter, a number, and a special character.";
         }
         return "";
+      case "confirmPassword":
+        if (!value) return "Please confirm your password";
+        if (value !== currentForm.password) return "Passwords do not match";
+        return "";
       case "phone":
         return value && !/^[0-9]{10}$/.test(value) ? "Phone number must be exactly 10 digits" : "";
       default:
@@ -50,18 +56,26 @@ export default function RegisterPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: validateField(name, value) }));
+    setForm((prev) => {
+      const nextForm = { ...prev, [name]: value };
+      setErrors((prevErrors) => ({
+        ...prevErrors,
+        [name]: validateField(name, value, nextForm),
+        ...(name === "password" && nextForm.confirmPassword ? { confirmPassword: validateField("confirmPassword", nextForm.confirmPassword, nextForm) } : {})
+      }));
+      return nextForm;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const newErrors = {
-      name: validateField("name", form.name),
-      email: validateField("email", form.email),
-      password: validateField("password", form.password),
-      phone: validateField("phone", form.phone),
+      name: validateField("name", form.name, form),
+      email: validateField("email", form.email, form),
+      password: validateField("password", form.password, form),
+      confirmPassword: validateField("confirmPassword", form.confirmPassword, form),
+      phone: validateField("phone", form.phone, form),
     };
     
     setErrors(newErrors);
@@ -265,9 +279,9 @@ export default function RegisterPage() {
                   }
                 >
                   {showPassword ? (
-                    <EyeOff size={17} />
+                    <EyeOff size={17} className="cursor-pointer"/>
                   ) : (
-                    <Eye size={17} />
+                    <Eye size={17} className="cursor-pointer"/>
                   )}
                 </button>
               </div>
@@ -278,6 +292,57 @@ export default function RegisterPage() {
                 <p className="text-xs text-slate-600 mt-1">
                   At least 8 characters, 1 uppercase, 1 lowercase, 1 number, and 1 special character.
                 </p>
+              )}
+            </div>
+
+            {/* Confirm Password */}
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="reg-confirm-password"
+                className="text-sm font-medium text-slate-300"
+              >
+                Confirm Password
+              </label>
+
+              <div className="group relative">
+                <Lock
+                  size={17}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-yellow-400"
+                />
+
+                <input
+                  id="reg-confirm-password"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm your password"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                  autoComplete="new-password"
+                  className={`h-12 w-full rounded-xl border bg-black/20 pl-[46px] pr-12 text-sm text-white outline-none transition placeholder:text-slate-600 hover:border-white/20 focus:bg-black/30 focus:ring-4 ${
+                    errors.confirmPassword
+                      ? "border-red-500/50 focus:border-red-500/50 focus:ring-red-500/10"
+                      : "border-white/10 focus:border-yellow-400/50 focus:ring-yellow-400/[0.06]"
+                  }`}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-white"
+                  aria-label={
+                    showConfirmPassword ? "Hide password" : "Show password"
+                  }
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff size={17} />
+                  ) : (
+                    <Eye size={17} />
+                  )}
+                </button>
+              </div>
+
+              {errors.confirmPassword && (
+                <p className="text-xs text-red-400 mt-1">{errors.confirmPassword}</p>
               )}
             </div>
 
