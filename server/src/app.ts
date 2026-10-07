@@ -22,7 +22,10 @@ app.use(helmet()); // Sets secure HTTP headers
 
 app.use(
   cors({
-    origin: env.CLIENT_URL,
+    origin:
+      env.NODE_ENV === 'development'
+        ? [env.CLIENT_URL, /^http:\/\/localhost:\d+$/]
+        : env.CLIENT_URL,
     credentials: true,
   })
 );
