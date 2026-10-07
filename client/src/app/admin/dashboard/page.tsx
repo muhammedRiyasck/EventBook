@@ -109,90 +109,135 @@ export default function AdminDashboardPage() {
   ];
 
   return (
-    <div className="page-wrapper pt-[100px] pb-[80px] relative overflow-hidden">
-      <div className="glow-dot w-[600px] h-[600px] bg-[rgba(26,50,105,0.3)] -top-[100px] -right-[200px]" />
-      <div className="container">
-        <div className="flex items-start justify-between mb-9 gap-4">
-          <div>
-            <h1 className="section-title">Admin Dashboard</h1>
-            <p style={{ color: "var(--slate-400)", marginTop: 8 }}>
-              Overview of your EventBook platform
-            </p>
-          </div>
-          <Link
-            href="/admin/services/new"
-            className="btn btn-primary"
-            id="add-service-btn"
+  <div className="min-h-screen overflow-hidden bg-[#050d1e] px-4 pb-20 pt-[100px] text-white sm:px-6">
+    {/* Background Glow */}
+    <div className="pointer-events-none fixed inset-0 overflow-hidden">
+      <div className="absolute -right-40 -top-40 h-[600px] w-[600px] rounded-full bg-indigo-500/[0.08] blur-[120px]" />
+      <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-yellow-400/[0.05] blur-[120px]" />
+      <div className="absolute left-1/2 top-1/3 h-[500px] w-[300px] -translate-x-1/2 rounded-full bg-blue-500/[0.03] blur-[100px]" />
+    </div>
+
+    <div className="relative z-10 mx-auto w-full max-w-7xl">
+      {/* Header */}
+      <div className="mb-9 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-yellow-400">
+            Administration
+          </p>
+
+          <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+            Admin Dashboard
+          </h1>
+
+          <p className="mt-2 text-sm text-slate-500">
+            Overview of your EventBook platform
+          </p>
+        </div>
+
+        <Link
+          href="/admin/services/new"
+          id="add-service-btn"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-5 text-sm font-bold text-[#050d1e] shadow-[0_8px_25px_rgba(250,204,21,0.1)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-yellow-300 hover:shadow-[0_12px_30px_rgba(250,204,21,0.18)]"
+        >
+          <span className="text-lg leading-none">+</span>
+          Add Service
+        </Link>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="mb-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {STAT_CARDS.map((card) => (
+          <div
+            key={card.label}
+            className="group rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-yellow-400/20 hover:bg-white/[0.05] hover:shadow-[0_15px_40px_rgba(0,0,0,0.2)]"
           >
-            + Add Service
-          </Link>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-12">
-          {STAT_CARDS.map((card) => (
             <div
-              key={card.label}
-              className="bg-white/5 border border-white/10 rounded-lg p-6 flex flex-col gap-2.5 animate-[fadeInUp_0.4s_ease] transition-all duration-200 hover:border-[#ffd700]/20 hover:-translate-y-1"
+              className="flex h-12 w-12 items-center justify-center rounded-xl"
+              style={{
+                background: card.bg,
+                color: card.color,
+              }}
             >
-              <div
-                className="w-12 h-12 rounded-md flex items-center justify-center"
-                style={{ background: card.bg, color: card.color }}
-              >
-                {card.icon}
-              </div>
-              <div className="font-display text-[36px] font-black text-white leading-none">
-                {loading ? "—" : card.value}
-              </div>
-              <div className="text-[13px] text-slate-400 font-medium">
-                {card.label}
-              </div>
+              {card.icon}
             </div>
-          ))}
+
+            <div className="mt-5 text-3xl font-black leading-none tracking-tight text-white sm:text-4xl">
+              {loading ? (
+                <span className="text-slate-600">—</span>
+              ) : (
+                card.value
+              )}
+            </div>
+
+            <div className="mt-2 text-sm font-medium text-slate-400">
+              {card.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Manage */}
+      <section>
+        <div className="mb-5">
+          <h2 className="text-lg font-bold text-white">Manage</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Manage your platform services and bookings
+          </p>
         </div>
 
-        {/* Quick Nav */}
-        <h2 className="text-[18px] font-bold text-white mb-4">Manage</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-[600px]">
+        <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+          {/* Services */}
           <Link
             href="/admin/services"
-            className="flex items-center gap-4 p-5 bg-white/5 border border-white/10 rounded-lg transition-all duration-200 hover:border-[#ffd700]/30 hover:translate-x-1 hover:bg-white/10"
             id="admin-services-link"
+            className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-400/20 hover:bg-white/[0.055] hover:shadow-[0_10px_35px_rgba(0,0,0,0.2)]"
           >
-            <div className="w-12 h-12 rounded-md bg-[#a855f7]/10 text-[#a855f7] flex items-center justify-center shrink-0">
-              <Layers size={24} />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-purple-400/10 bg-purple-400/10 text-purple-400">
+              <Layers size={22} />
             </div>
-            <div>
-              <h3 className="text-[15px] font-bold text-white mb-1">
+
+            <div className="min-w-0">
+              <h3 className="text-[15px] font-bold text-white">
                 Services
               </h3>
-              <p className="text-[13px] text-slate-400">
+
+              <p className="mt-1 text-[13px] text-slate-400">
                 Add, edit, or remove services
               </p>
             </div>
+
+            <span className="ml-auto shrink-0 text-slate-600 transition-all duration-200 group-hover:translate-x-1 group-hover:text-yellow-400">
+              →
+            </span>
           </Link>
+
+          {/* Bookings */}
           <Link
             href="/admin/bookings"
-            className="flex items-center gap-4 p-5 bg-white/5 border border-white/10 rounded-lg transition-all duration-200 hover:border-[#ffd700]/30 hover:translate-x-1 hover:bg-white/10"
             id="admin-bookings-link"
+            className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-400/20 hover:bg-white/[0.055] hover:shadow-[0_10px_35px_rgba(0,0,0,0.2)]"
           >
-            <div
-              className="w-12 h-12 rounded-md bg-[#a855f7]/10 text-[#a855f7] flex items-center justify-center shrink-0"
-              style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6" }}
-            >
-              <CalendarDays size={24} />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-blue-400/10 bg-blue-400/10 text-blue-400">
+              <CalendarDays size={22} />
             </div>
-            <div>
-              <h3 className="text-[15px] font-bold text-white mb-1">
+
+            <div className="min-w-0">
+              <h3 className="text-[15px] font-bold text-white">
                 Bookings
               </h3>
-              <p className="text-[13px] text-slate-400">
+
+              <p className="mt-1 text-[13px] text-slate-400">
                 View and manage all bookings
               </p>
             </div>
+
+            <span className="ml-auto shrink-0 text-slate-600 transition-all duration-200 group-hover:translate-x-1 group-hover:text-yellow-400">
+              →
+            </span>
           </Link>
         </div>
-      </div>
+      </section>
     </div>
-  );
+  </div>
+);
 }
