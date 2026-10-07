@@ -3,15 +3,12 @@ import { validationResult } from 'express-validator';
 import Booking from '../models/Booking';
 import Service from '../models/Service';
 import { AuthRequest } from '../middleware/auth';
-import {
-  calculateTotalDays,
-  calculateTotalPrice,
-  hasAvailabilityConflict,
-} from '../utils/priceCalculator';
+
 import {
   sendBookingConfirmationEmail,
   sendBookingCancellationEmail,
 } from '../utils/emailService';
+import { calculateTotalDays, calculateTotalPrice } from '../utils/priceCalculator';
 
 /**
  * @desc    Create a new booking
@@ -30,7 +27,7 @@ export const createBooking = async (
       return;
     }
 
-    const { serviceId, startDate, endDate, notes } = req.body;
+    const { serviceId, startDate, endDate, notes, guestCount } = req.body;
 
     const service = await Service.findById(serviceId);
     if (!service || !service.isActive) {
@@ -52,12 +49,10 @@ export const createBooking = async (
       return;
     }
 
-    // Check for availability conflicts
-    const conflict = hasAvailabilityConflict(service.availability, start, end);
-    if (conflict) {
-      res.status(409).json({
-        success: false,
-        message: 'Service is not available for the selected dates',
+    if (guestCount && service.capacity && guestCount > service.capacity) {
+      res.status(400).json({ 
+        success: false, 
+        message: `Guest count exceeds the maximum capacity of ${service.capacity}` 
       });
       return;
     }
@@ -65,25 +60,68 @@ export const createBooking = async (
     const totalDays = calculateTotalDays(start, end);
     const totalPrice = calculateTotalPrice(service.pricePerDay, totalDays);
 
-    // Create the booking
-    const booking = await Booking.create({
-      user: req.user!._id,
-      service: serviceId,
-      startDate: start,
-      endDate: end,
-      totalDays,
-      totalPrice,
-      notes,
-      status: 'confirmed',
-    });
+    // Atomic update to reserve dates and prevent race conditions
+    const updatedService = await Service.findOneAndUpdate(
+      {
+        _id: serviceId,
+        isActive: true,
+        availability: {
+          $not: {
+            $elemMatch: {
+              isBooked: true,
+              startDate: { $lt: end },
+              endDate: { $gt: start },
+            },
+          },
+        },
+      },
+      {
+        $push: {
+          availability: {
+            startDate: start,
+            endDate: end,
+            isBooked: true,
+          },
+        },
+      },
+      { new: true }
+    );
 
-    // Mark the dates as booked in the service availability
-    service.availability.push({
-      startDate: start,
-      endDate: end,
-      isBooked: true,
-    });
-    await service.save();
+    if (!updatedService) {
+      res.status(409).json({
+        success: false,
+        message: 'Service is not available for the selected dates. It may have been just booked by someone else.',
+      });
+      return;
+    }
+
+    // Now that the service dates are safely reserved, create the booking record
+    let booking;
+    try {
+      booking = await Booking.create({
+        user: req.user!._id,
+        service: serviceId,
+        startDate: start,
+        endDate: end,
+        totalDays,
+        totalPrice,
+        guestCount,
+        notes,
+        status: 'confirmed',
+      });
+    } catch (err) {
+      // If booking creation fails, we must rollback the service availability
+      await Service.findByIdAndUpdate(serviceId, {
+        $pull: {
+          availability: {
+            startDate: start,
+            endDate: end,
+            isBooked: true,
+          },
+        },
+      });
+      throw err;
+    }
 
     // Send confirmation email (non-blocking — don't fail the request if email fails)
     sendBookingConfirmationEmail({

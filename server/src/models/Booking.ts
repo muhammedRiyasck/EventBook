@@ -10,6 +10,7 @@ export interface IBooking extends Document {
   endDate: Date;
   totalDays: number;
   totalPrice: number;
+  guestCount?: number;
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   notes?: string;
@@ -46,6 +47,10 @@ const BookingSchema = new Schema<IBooking>(
       type: Number,
       required: true,
       min: [0, 'Total price cannot be negative'],
+    },
+    guestCount: {
+      type: Number,
+      min: [1, 'Guest count must be at least 1'],
     },
     status: {
       type: String,
