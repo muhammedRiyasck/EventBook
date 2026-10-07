@@ -28,6 +28,11 @@ interface Props {
     contact?: { phone: string; email: string; website?: string };
     tags?: string[];
     images?: string[];
+    customCategory?: string;
+    capacity?: number;
+    pricingUnit?: string;
+    cancellationPolicy?: string;
+    amenities?: string[];
   };
 }
 
@@ -38,6 +43,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
   const [previews, setPreviews] = useState<string[]>(initialData?.images || []);
   const [keepImages] = useState<string[]>(initialData?.images || []);
   const [tagInput, setTagInput] = useState("");
+  const [amenityInput, setAmenityInput] = useState("");
 
   const [form, setForm] = useState({
     title: initialData?.title || "",
@@ -51,6 +57,11 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
     email: initialData?.contact?.email || "",
     website: initialData?.contact?.website || "",
     tags: initialData?.tags || ([] as string[]),
+    customCategory: initialData?.customCategory || "",
+    capacity: initialData?.capacity?.toString() || "",
+    pricingUnit: initialData?.pricingUnit || "per_day",
+    cancellationPolicy: initialData?.cancellationPolicy || "",
+    amenities: initialData?.amenities || ([] as string[]),
   });
 
   const handleChange = (
@@ -92,6 +103,16 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
 
   const removeTag = (tag: string) =>
     setForm((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }));
+
+  const addAmenity = () => {
+    const amenity = amenityInput.trim();
+    if (!amenity || form.amenities.includes(amenity)) return;
+    setForm((p) => ({ ...p, amenities: [...p.amenities, amenity] }));
+    setAmenityInput("");
+  };
+
+  const removeAmenity = (amenity: string) =>
+    setForm((p) => ({ ...p, amenities: p.amenities.filter((a) => a !== amenity) }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,6 +161,14 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
         }),
       );
       formData.append("tags", JSON.stringify(form.tags));
+      if (form.category === "other" && form.customCategory) {
+        formData.append("customCategory", form.customCategory);
+      }
+      if (form.capacity) formData.append("capacity", form.capacity);
+      if (form.pricingUnit) formData.append("pricingUnit", form.pricingUnit);
+      if (form.cancellationPolicy) formData.append("cancellationPolicy", form.cancellationPolicy);
+      if (form.amenities.length > 0) formData.append("amenities", JSON.stringify(form.amenities));
+
       if (mode === "edit")
         formData.append("keepImages", JSON.stringify(keepImages));
       images.forEach((img) => formData.append("images", img));
@@ -226,6 +255,27 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
             ))}
           </select>
         </div>
+
+        {form.category === "other" && (
+          <div>
+            <label
+              htmlFor="customCategory"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Specify Category <span className="text-yellow-400">*</span>
+            </label>
+            <input
+              id="customCategory"
+              name="customCategory"
+              type="text"
+              className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
+              placeholder="e.g. Makeup Artist"
+              value={form.customCategory}
+              onChange={handleChange}
+              required
+            />
+          </div>
+        )}
       </div>
 
       <div>
@@ -249,31 +299,87 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
         />
       </div>
 
-      <div className="max-w-md">
-        <label
-          htmlFor="pricePerDay"
-          className="mb-2 block text-sm font-medium text-slate-300"
-        >
-          Price Per Day (₹) <span className="text-yellow-400">*</span>
-        </label>
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <div>
+          <label
+            htmlFor="pricePerDay"
+            className="mb-2 block text-sm font-medium text-slate-300"
+          >
+            Base Price (₹) <span className="text-yellow-400">*</span>
+          </label>
 
-        <div className="relative">
-          <IndianRupee
-            size={15}
-            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
-          />
+          <div className="relative flex gap-2">
+            <div className="relative flex-1">
+              <IndianRupee
+                size={15}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+              />
+              <input
+                id="pricePerDay"
+                name="pricePerDay"
+                type="number"
+                className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] pl-10 pr-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
+                placeholder="25000"
+                value={form.pricePerDay}
+                onChange={handleChange}
+                min="1"
+                required
+              />
+            </div>
+            <select
+              name="pricingUnit"
+              className="h-11 w-32 rounded-xl border border-white/[0.08] bg-[#0a1628] px-3 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
+              value={form.pricingUnit}
+              onChange={handleChange}
+            >
+              <option value="per_day">Per Day</option>
+              <option value="per_hour">Per Hour</option>
+              <option value="per_person">Per Person</option>
+              <option value="per_project">Per Project</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label
+            htmlFor="capacity"
+            className="mb-2 block text-sm font-medium text-slate-300"
+          >
+            Capacity / Guest Limit <span className="text-slate-600">(optional)</span>
+          </label>
 
           <input
-            id="pricePerDay"
-            name="pricePerDay"
+            id="capacity"
+            name="capacity"
             type="number"
-            className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] pl-10 pr-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
-            placeholder="25000"
-            value={form.pricePerDay}
+            className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
+            placeholder="e.g. 500"
+            value={form.capacity}
             onChange={handleChange}
             min="1"
-            required
           />
+        </div>
+
+        <div>
+          <label
+            htmlFor="cancellationPolicy"
+            className="mb-2 block text-sm font-medium text-slate-300"
+          >
+            Cancellation Policy <span className="text-slate-600">(optional)</span>
+          </label>
+
+          <select
+            id="cancellationPolicy"
+            name="cancellationPolicy"
+            className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0a1628] px-4 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
+            value={form.cancellationPolicy}
+            onChange={handleChange}
+          >
+            <option value="">Select a policy...</option>
+            <option value="Flexible">Flexible (Free cancellation up to 48h)</option>
+            <option value="Moderate">Moderate (Free cancellation up to 7 days)</option>
+            <option value="Strict">Strict (No refund)</option>
+          </select>
         </div>
       </div>
     </div>
@@ -454,7 +560,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
 
         <button
           type="button"
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-yellow-400/20 hover:bg-yellow-400/[0.06] hover:text-yellow-400"
+          className="inline-flex h-11 cursor-pointer shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-yellow-400/20 hover:bg-yellow-400/[0.06] hover:text-yellow-400"
           onClick={addTag}
         >
           <Plus size={14} />
@@ -475,6 +581,62 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
                 type="button"
                 onClick={() => removeTag(tag)}
                 className="flex items-center text-yellow-400/50 transition-colors duration-150 hover:text-red-400"
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+
+    {/* Amenities */}
+    <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
+      <div className="border-b border-white/[0.08] pb-4">
+        <h3 className="text-[15px] font-bold text-white">Amenities & Features</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          List the amenities or features you provide (e.g., WiFi, AC, Parking).
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <input
+          type="text"
+          className="h-11 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/40 focus:bg-white/[0.06] focus:ring-2 focus:ring-yellow-400/10"
+          placeholder="Add an amenity (e.g. AC, Parking)"
+          value={amenityInput}
+          onChange={(e) => setAmenityInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addAmenity();
+            }
+          }}
+        />
+
+        <button
+          type="button"
+          className="inline-flex h-11 cursor-pointer shrink-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.05] px-5 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-yellow-400/20 hover:bg-yellow-400/[0.06] hover:text-yellow-400"
+          onClick={addAmenity}
+        >
+          <Plus size={14} />
+          Add
+        </button>
+      </div>
+
+      {form.amenities.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {form.amenities.map((amenity) => (
+            <span
+              key={amenity}
+              className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/15 bg-blue-400/[0.07] px-3 py-1.5 text-xs font-medium text-blue-400"
+            >
+              ✓ {amenity}
+
+              <button
+                type="button"
+                onClick={() => removeAmenity(amenity)}
+                className="flex items-center text-blue-400/50 transition-colors duration-150 hover:text-red-400"
               >
                 <X size={11} />
               </button>
@@ -554,7 +716,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
     <div className="flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-5 sm:flex-row sm:justify-end">
       <button
         type="button"
-        className="inline-flex h-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-6 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-white/[0.14] hover:bg-white/[0.07] hover:text-white"
+        className="inline-flex cursor-pointer h-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] px-6 text-sm font-semibold text-slate-300 transition-all duration-200 hover:border-white/[0.14] hover:bg-white/[0.07] hover:text-white"
         onClick={() => router.back()}
       >
         Cancel
@@ -563,7 +725,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
       <button
         id="service-submit-btn"
         type="submit"
-        className="inline-flex h-11 items-center justify-center rounded-xl bg-yellow-400 px-6 text-sm font-bold text-[#050d1e] shadow-[0_8px_25px_rgba(250,204,21,0.1)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-yellow-300 hover:shadow-[0_12px_30px_rgba(250,204,21,0.18)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+        className="inline-flex h-11 items-center justify-center rounded-xl bg-yellow-400 px-6 cursor-pointer text-sm font-bold text-[#050d1e] shadow-[0_8px_25px_rgba(250,204,21,0.1)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-yellow-300 hover:shadow-[0_12px_30px_rgba(250,204,21,0.18)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
         disabled={loading}
       >
         {loading

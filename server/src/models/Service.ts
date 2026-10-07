@@ -33,6 +33,11 @@ export interface IService extends Document {
     website?: string;
   };
   tags: string[];
+  customCategory?: string;
+  capacity?: number;
+  pricingUnit?: 'per_day' | 'per_hour' | 'per_person' | 'per_project';
+  cancellationPolicy?: 'Flexible' | 'Moderate' | 'Strict';
+  amenities?: string[];
   rating: number;
   totalReviews: number;
   isActive: boolean;
@@ -86,6 +91,18 @@ const ServiceSchema = new Schema<IService>(
       website: { type: String },
     },
     tags: [{ type: String, lowercase: true, trim: true }],
+    customCategory: { type: String, trim: true },
+    capacity: { type: Number, min: 1 },
+    pricingUnit: {
+      type: String,
+      enum: ['per_day', 'per_hour', 'per_person', 'per_project'],
+      default: 'per_day',
+    },
+    cancellationPolicy: {
+      type: String,
+      enum: ['Flexible', 'Moderate', 'Strict'],
+    },
+    amenities: [{ type: String, trim: true }],
     rating: { type: Number, default: 0, min: 0, max: 5 },
     totalReviews: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },

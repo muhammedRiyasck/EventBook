@@ -196,6 +196,11 @@ export const createService = async (
       contact,
       tags,
       availability,
+      customCategory,
+      capacity,
+      pricingUnit,
+      cancellationPolicy,
+      amenities,
     } = req.body;
 
     const service = await Service.create({
@@ -207,6 +212,11 @@ export const createService = async (
       contact: typeof contact === 'string' ? JSON.parse(contact) : contact,
       tags: typeof tags === 'string' ? JSON.parse(tags) : tags || [],
       availability: typeof availability === 'string' ? JSON.parse(availability) : availability || [],
+      customCategory,
+      capacity: capacity ? Number(capacity) : undefined,
+      pricingUnit,
+      cancellationPolicy,
+      amenities: typeof amenities === 'string' ? JSON.parse(amenities) : amenities || [],
       images: imageUrls,
       createdBy: req.user!._id,
     });
@@ -255,6 +265,11 @@ export const updateService = async (
       tags,
       availability,
       keepImages, // JSON array of existing image URLs to keep
+      customCategory,
+      capacity,
+      pricingUnit,
+      cancellationPolicy,
+      amenities,
     } = req.body;
 
     const existingImagesToKeep: string[] =
@@ -269,6 +284,11 @@ export const updateService = async (
     if (contact) updatedFields.contact = typeof contact === 'string' ? JSON.parse(contact) : contact;
     if (tags) updatedFields.tags = typeof tags === 'string' ? JSON.parse(tags) : tags;
     if (availability) updatedFields.availability = typeof availability === 'string' ? JSON.parse(availability) : availability;
+    if (customCategory !== undefined) updatedFields.customCategory = customCategory;
+    if (capacity) updatedFields.capacity = Number(capacity);
+    if (pricingUnit) updatedFields.pricingUnit = pricingUnit;
+    if (cancellationPolicy) updatedFields.cancellationPolicy = cancellationPolicy;
+    if (amenities) updatedFields.amenities = typeof amenities === 'string' ? JSON.parse(amenities) : amenities;
     updatedFields.images = [...existingImagesToKeep, ...newImageUrls];
 
     const updatedService = await Service.findByIdAndUpdate(
