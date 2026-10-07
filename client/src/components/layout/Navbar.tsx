@@ -156,10 +156,16 @@ export default function Navbar() {
             </div>
           ) : (
             <>
-              <Link href="/login" className="btn btn-secondary btn-sm text-white outline rounded-full px-4 py-2 hover:bg-yellow-400 hover:text-black">
+              <Link
+                href="/login"
+                className="btn btn-secondary btn-sm text-white outline rounded-full px-4 py-2 hover:bg-yellow-400 hover:text-black"
+              >
                 Sign In
               </Link>
-              <Link href="/register" className="btn btn-primary btn-sm text-white outline rounded-full px-4 py-2 hover:bg-yellow-400 hover:text-black">
+              <Link
+                href="/register"
+                className="btn btn-primary btn-sm text-white outline rounded-full px-4 py-2 hover:bg-yellow-400 hover:text-black"
+              >
                 Get Started
               </Link>
             </>
