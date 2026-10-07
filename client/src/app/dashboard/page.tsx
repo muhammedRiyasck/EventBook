@@ -31,115 +31,123 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="page-wrapper pt-[100px] pb-[80px] relative overflow-hidden">
-      <div className="glow-dot w-[600px] h-[600px] bg-[rgba(26,50,105,0.3)] -top-[100px] -right-[100px]" />
-      <div className="container">
-        {/* Welcome */}
-        <div className="flex items-center gap-5 mb-12 animate-[fadeInUp_0.4s_ease]">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[var(--gold-400)] to-[var(--gold-600)] flex items-center justify-center font-display text-[28px] font-extrabold text-[var(--navy-900)] shrink-0 shadow-[0_4px_20px_rgba(255,215,0,0.3)]">
-            {user.name.charAt(0).toUpperCase()}
-          </div>
-          <div>
-            <h1 className="font-display text-[clamp(22px,3vw,32px)] font-extrabold text-white leading-[1.2]">
-              Welcome back,{" "}
-              <span className="gradient-text">{user.name.split(" ")[0]}</span>!
-              👋
-            </h1>
-            <p style={{ color: "var(--slate-400)", fontSize: 15 }}>
-              {user.email} · {user.phone || "No phone added"}
-            </p>
-          </div>
+  <div className="min-h-screen overflow-hidden bg-[#050d1e] px-4 pb-20 pt-[100px] text-white sm:px-6">
+    {/* Background glow */}
+    <div className="pointer-events-none fixed inset-0 overflow-hidden">
+      <div className="absolute -right-40 -top-40 h-[600px] w-[600px] rounded-full bg-blue-900/20 blur-[120px]" />
+      <div className="absolute -bottom-40 -left-40 h-[500px] w-[500px] rounded-full bg-yellow-400/[0.05] blur-[120px]" />
+      <div className="absolute left-1/2 top-1/2 h-[700px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-500/[0.04] blur-[120px]" />
+    </div>
+
+    <div className="relative z-10 mx-auto w-full max-w-5xl">
+      {/* Welcome */}
+      <div className="mb-12 flex items-center gap-4 sm:gap-5">
+        {/* Avatar */}
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-yellow-300 to-yellow-600 text-[26px] font-extrabold text-[#050d1e] shadow-[0_4px_25px_rgba(250,204,21,0.2)]">
+          {user.name.charAt(0).toUpperCase()}
         </div>
 
-        {/* Quick Actions */}
-        <h2 className="text-[18px] font-bold text-white mb-4">Quick Actions</h2>
-        <div className="flex flex-col gap-3 max-w-[600px]">
+        <div className="min-w-0">
+          <h1 className="text-[clamp(22px,3vw,32px)] font-extrabold leading-tight tracking-tight">
+            Welcome back,{" "}
+            <span className="bg-gradient-to-r from-yellow-300 via-yellow-400 to-amber-500 bg-clip-text text-transparent">
+              {user.name.split(" ")[0]}
+            </span>
+            !
+          </h1>
+
+          <p className="mt-1 truncate text-sm text-slate-400 sm:text-[15px]">
+            {user.email}
+            <span className="mx-2 text-slate-600">·</span>
+            {user.phone || "No phone added"}
+          </p>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <section>
+        <div className="mb-5">
+          <h2 className="text-lg font-bold text-white">Quick Actions</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Manage your event bookings and account
+          </p>
+        </div>
+
+        <div className="flex max-w-2xl flex-col gap-3">
+          {/* Browse Services */}
           <Link
             href="/services"
-            className="flex items-center gap-4 py-[18px] px-5 bg-white/5 border border-white/10 rounded-lg transition-all duration-200 animate-[fadeInUp_0.4s_ease] hover:border-[#ffd700]/30 hover:translate-x-1 hover:bg-white/10 group"
             id="dashboard-browse-btn"
+            className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-yellow-400/25 hover:bg-white/[0.055] hover:shadow-[0_10px_35px_rgba(0,0,0,0.2)] sm:p-5"
           >
-            <div
-              className="w-12 h-12 rounded-md flex items-center justify-center shrink-0"
-              style={{
-                background: "rgba(255,215,0,0.1)",
-                color: "var(--gold-400)",
-              }}
-            >
-              <Search size={24} />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-yellow-400/10 bg-yellow-400/10 text-yellow-400">
+              <Search size={22} />
             </div>
-            <div>
-              <h3 className="text-[15px] font-bold text-white mb-0.5 ">
+
+            <div className="min-w-0">
+              <h3 className="text-[15px] font-bold text-white">
                 Browse Services
               </h3>
-              <p className="text-[13px] text-slate-400">
+              <p className="mt-1 text-[13px] text-slate-400">
                 Search and book event services
               </p>
             </div>
+
             <ArrowRight
               size={18}
-              className="ml-auto text-slate-500 shrink-0 group-hover:text-[var(--gold-400)]"
+              className="ml-auto shrink-0 text-slate-600 transition-all duration-200 group-hover:translate-x-1 group-hover:text-yellow-400"
             />
           </Link>
 
+          {/* My Bookings */}
           <Link
             href="/bookings"
-            className="flex items-center gap-4 py-[18px] px-5 bg-white/5 border border-white/10 rounded-lg transition-all duration-200 animate-[fadeInUp_0.4s_ease] hover:border-[#ffd700]/30 hover:translate-x-1 hover:bg-white/10 group"
             id="dashboard-bookings-btn"
+            className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-400/25 hover:bg-white/[0.055] hover:shadow-[0_10px_35px_rgba(0,0,0,0.2)] sm:p-5"
           >
-            <div
-              className="w-12 h-12 rounded-md flex items-center justify-center shrink-0"
-              style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6" }}
-            >
-              <CalendarDays size={24} />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-blue-400/10 bg-blue-400/10 text-blue-400">
+              <CalendarDays size={22} />
             </div>
-            <div>
-              <h3 className="text-[15px] font-bold text-white mb-0.5">
+
+            <div className="min-w-0">
+              <h3 className="text-[15px] font-bold text-white">
                 My Bookings
               </h3>
-              <p className="text-[13px] text-slate-400">
+              <p className="mt-1 text-[13px] text-slate-400">
                 View and manage your bookings
               </p>
             </div>
+
             <ArrowRight
               size={18}
-              className="ml-auto text-slate-500 shrink-0 group-hover:text-[var(--gold-400)]"
+              className="ml-auto shrink-0 text-slate-600 transition-all duration-200 group-hover:translate-x-1 group-hover:text-yellow-400"
             />
           </Link>
 
+          {/* My Profile - Coming Soon */}
           <div
-            className="flex items-center gap-4 py-[18px] px-5 bg-white/5 border border-white/10 rounded-lg transition-all duration-200 animate-[fadeInUp_0.4s_ease] hover:border-[#ffd700]/30 hover:translate-x-1 hover:bg-white/10 group"
-            style={{ opacity: 0.6, cursor: "not-allowed" }}
+            className="group flex cursor-not-allowed items-center gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4 opacity-50 sm:p-5"
           >
-            <div
-              className="w-12 h-12 rounded-md flex items-center justify-center shrink-0"
-              style={{
-                background: "rgba(34,197,94,0.1)",
-                color: "var(--success)",
-              }}
-            >
-              <User size={24} />
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-emerald-400/10 bg-emerald-400/10 text-emerald-400">
+              <User size={22} />
             </div>
-            <div>
-              <h3 className="text-[15px] font-bold text-white mb-0.5">
+
+            <div className="min-w-0">
+              <h3 className="text-[15px] font-bold text-white">
                 My Profile
               </h3>
-              <p className="text-[13px] text-slate-400">
+              <p className="mt-1 text-[13px] text-slate-400">
                 Update your account details
               </p>
             </div>
-            <span
-              style={{
-                fontSize: 11,
-                color: "var(--slate-600)",
-                marginLeft: "auto",
-              }}
-            >
+
+            <span className="ml-auto shrink-0 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
               Soon
             </span>
           </div>
         </div>
-      </div>
+      </section>
     </div>
-  );
+  </div>
+);
 }

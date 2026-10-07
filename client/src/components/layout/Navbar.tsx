@@ -54,14 +54,14 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-1 flex-1">
           <Link
             href="/services"
-            className={`px-[14px] py-[6px] rounded-full text-[14px] font-medium text-slate-300 transition-colors duration-200 text-yellow-600 outline hover:text-white hover:bg-white/10 ${pathname.startsWith("/services") ? "!text-[var(--gold-400)] !bg-[#ffd700]/10" : ""}`}
+            className={`px-[14px] py-[6px] rounded-full text-[14px] font-medium text-slate-300 transition-colors duration-200 text-yellow-600 outline hover:text-white hover:bg-white/10 ${pathname.startsWith("/services") ? "!text-[var(--gold-400)] !bg-[#ffd700]/10 " : ""}`}
           >
             Browse Services
           </Link>
           {isAuthenticated && !isAdmin && (
             <Link
               href="/bookings"
-              className={`px-[14px] py-[6px] rounded-full text-[14px] font-medium text-slate-300 transition-colors duration-200 hover:text-white hover:bg-white/10 ${pathname === "/bookings" ? "!text-[var(--gold-400)] !bg-[#ffd700]/10" : ""}`}
+              className={`px-[14px] py-[6px] rounded-full text-[14px] font-medium text-slate-300 transition-colors duration-200 text-yellow-600 outline mx-2 hover:text-white hover:bg-white/10 ${pathname === "/bookings" ? " !text-[var(--gold-400)] !bg-[#ffd700]/10 " : ""}`}
             >
               My Bookings
             </Link>
@@ -85,7 +85,7 @@ export default function Navbar() {
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 id="user-menu-btn"
               >
-                <div className="w-[30px] h-[30px] rounded-full bg-gradient-to-br from-[var(--gold-400)] to-[var(--gold-600)] flex items-center justify-center text-[13px] font-bold text-slate-900 shrink-0">
+                <div className="w-[30px] h-[30px] rounded-full bg-yellow-400 flex items-center justify-center text-[13px] font-bold text-slate-900 shrink-0">
                   {user?.name?.charAt(0).toUpperCase()}
                 </div>
                 <span className="text-[13px] font-medium">
@@ -102,7 +102,7 @@ export default function Navbar() {
                       {user?.email}
                     </p>
                     <span
-                      className={`badge ${isAdmin ? "badge-info" : ""}`}
+                      className={`badge ${isAdmin ? "badge-info" : ""} px-2 outline rounded-full`}
                       style={{
                         background: "rgba(255,215,0,0.15)",
                         color: "#ffd700",
@@ -138,7 +138,7 @@ export default function Navbar() {
                       </Link>
                       <Link
                         href="/bookings"
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-300 cursor-pointer transition-colors duration-150 w-full text-left bg-transparent hover:bg-white/5 hover:text-white"
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-300 cursor-pointer transition-colors duration-150 w-full text-left bg-transparent hover:bg-white/5 hover:text-white outline "
                       >
                         <CalendarDays size={15} /> My Bookings
                       </Link>
