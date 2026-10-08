@@ -78,17 +78,45 @@ export const validateServiceField = (
         return "Please enter a valid URL (starting with http:// or https://)";
       break;
     case "availableFrom":
-      if (value && formState.availableTo) {
-        if (new Date(value as string) > new Date(formState.availableTo)) {
-          return "Start date cannot be after end date";
+      if (value) {
+        const fromDate = new Date(value as string);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (fromDate < today) {
+          return "Start date cannot be in the past";
         }
+        if (formState.availableTo) {
+          const toDate = new Date(formState.availableTo);
+          if (fromDate.getTime() === toDate.getTime()) {
+            return "Start and end dates cannot be the same";
+          }
+          if (fromDate > toDate) {
+            return "Start date cannot be after end date";
+          }
+        }
+      } else if (formState.availableTo) {
+        return "Start date is required if end date is provided";
       }
       break;
     case "availableTo":
-      if (value && formState.availableFrom) {
-        if (new Date(value as string) < new Date(formState.availableFrom)) {
-          return "End date cannot be before start date";
+      if (value) {
+        const toDate = new Date(value as string);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (toDate < today) {
+          return "End date cannot be in the past";
         }
+        if (formState.availableFrom) {
+          const fromDate = new Date(formState.availableFrom);
+          if (toDate.getTime() === fromDate.getTime()) {
+            return "Start and end dates cannot be the same";
+          }
+          if (toDate < fromDate) {
+            return "End date cannot be before start date";
+          }
+        }
+      } else if (formState.availableFrom) {
+        return "End date is required if start date is provided";
       }
       break;
   }

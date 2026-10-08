@@ -9,10 +9,23 @@ export type ServiceCategory =
   | 'decorator'
   | 'other';
 
+export type BookingMode = 'date_range' | 'single_day' | 'time_slot';
+
+export interface ITimeSlot {
+  _id: Types.ObjectId;
+  label: string;       // e.g. "Morning Show", "Evening Session"
+  startTime: string;   // "HH:mm" 24h
+  endTime: string;     // "HH:mm" 24h
+  maxBookings: number; // simultaneous bookings allowed per slot per day
+  isActive: boolean;
+}
+
 export interface IAvailabilityWindow {
   startDate: Date;
   endDate: Date;
   isBooked: boolean;
+  timeSlotId?: string; // tracks which slot is booked (for time_slot mode)
+  bookingCount?: number; // tracks how many bookings on this date (for multi-booking)
 }
 
 export interface IService extends Document {
@@ -40,6 +53,10 @@ export interface IService extends Document {
   amenities?: string[];
   availableFrom?: Date;
   availableTo?: Date;
+  // Time slot support
+  bookingMode: BookingMode;
+  timeSlots: ITimeSlot[];
+  maxBookingsPerDay?: number;
   rating: number;
   totalReviews: number;
   isActive: boolean;
@@ -48,11 +65,41 @@ export interface IService extends Document {
   updatedAt: Date;
 }
 
+const TimeSlotSchema = new Schema<ITimeSlot>(
+  {
+    label: {
+      type: String,
+      required: [true, 'Slot label is required'],
+      trim: true,
+      maxlength: [80, 'Label cannot exceed 80 characters'],
+    },
+    startTime: {
+      type: String,
+      required: [true, 'Slot start time is required'],
+      match: [/^\d{2}:\d{2}$/, 'Start time must be in HH:mm format'],
+    },
+    endTime: {
+      type: String,
+      required: [true, 'Slot end time is required'],
+      match: [/^\d{2}:\d{2}$/, 'End time must be in HH:mm format'],
+    },
+    maxBookings: {
+      type: Number,
+      required: true,
+      default: 1,
+      min: [1, 'Max bookings must be at least 1'],
+    },
+    isActive: { type: Boolean, default: true },
+  }
+);
+
 const AvailabilitySchema = new Schema<IAvailabilityWindow>(
   {
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
     isBooked: { type: Boolean, default: false },
+    timeSlotId: { type: String },
+    bookingCount: { type: Number, default: 0 },
   },
   { _id: false }
 );
@@ -107,6 +154,17 @@ const ServiceSchema = new Schema<IService>(
     amenities: [{ type: String, trim: true }],
     availableFrom: { type: Date },
     availableTo: { type: Date },
+    // Time slot fields
+    bookingMode: {
+      type: String,
+      enum: ['date_range', 'single_day', 'time_slot'],
+      default: 'date_range',
+    },
+    timeSlots: [TimeSlotSchema],
+    maxBookingsPerDay: {
+      type: Number,
+      min: [1, 'Max bookings per day must be at least 1'],
+    },
     rating: { type: Number, default: 0, min: 0, max: 5 },
     totalReviews: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },

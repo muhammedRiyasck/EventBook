@@ -203,6 +203,9 @@ export const createService = async (
       amenities,
       availableFrom,
       availableTo,
+      bookingMode,
+      timeSlots,
+      maxBookingsPerDay,
     } = req.body;
 
     const service = await Service.create({
@@ -221,6 +224,9 @@ export const createService = async (
       amenities: typeof amenities === 'string' ? JSON.parse(amenities) : amenities || [],
       availableFrom: availableFrom ? new Date(availableFrom) : undefined,
       availableTo: availableTo ? new Date(availableTo) : undefined,
+      bookingMode: bookingMode || 'date_range',
+      timeSlots: typeof timeSlots === 'string' ? JSON.parse(timeSlots) : timeSlots || [],
+      maxBookingsPerDay: maxBookingsPerDay ? Number(maxBookingsPerDay) : undefined,
       images: imageUrls,
       createdBy: req.user!._id,
     });
@@ -242,6 +248,12 @@ export const updateService = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
     const service = await Service.findById(req.params.id);
     if (!service) {
       res.status(404).json({ success: false, message: 'Service not found' });
@@ -268,7 +280,7 @@ export const updateService = async (
       contact,
       tags,
       availability,
-      keepImages, // JSON array of existing image URLs to keep
+      keepImages,
       customCategory,
       capacity,
       pricingUnit,
@@ -276,6 +288,9 @@ export const updateService = async (
       amenities,
       availableFrom,
       availableTo,
+      bookingMode,
+      timeSlots,
+      maxBookingsPerDay,
     } = req.body;
 
     const existingImagesToKeep: string[] =
@@ -297,6 +312,9 @@ export const updateService = async (
     if (amenities) updatedFields.amenities = typeof amenities === 'string' ? JSON.parse(amenities) : amenities;
     if (availableFrom) updatedFields.availableFrom = new Date(availableFrom);
     if (availableTo) updatedFields.availableTo = new Date(availableTo);
+    if (bookingMode) updatedFields.bookingMode = bookingMode;
+    if (timeSlots !== undefined) updatedFields.timeSlots = typeof timeSlots === 'string' ? JSON.parse(timeSlots) : timeSlots;
+    if (maxBookingsPerDay) updatedFields.maxBookingsPerDay = Number(maxBookingsPerDay);
     updatedFields.images = [...existingImagesToKeep, ...newImageUrls];
 
     const updatedService = await Service.findByIdAndUpdate(
@@ -336,3 +354,82 @@ export const deleteService = async (
     next(error);
   }
 };
+
+/**
+ * @desc    Get available time slots for a service on a given date
+ * @route   GET /api/services/:id/available-slots?date=YYYY-MM-DD
+ * @access  Public
+ */
+export const getAvailableSlots = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { date } = req.query as { date?: string };
+
+    if (!date) {
+      res.status(400).json({ success: false, message: 'Query param ?date=YYYY-MM-DD is required' });
+      return;
+    }
+
+    const service = await Service.findById(req.params.id);
+    if (!service || !service.isActive) {
+      res.status(404).json({ success: false, message: 'Service not found' });
+      return;
+    }
+
+    if (service.bookingMode !== 'time_slot' || !service.timeSlots?.length) {
+      res.status(200).json({
+        success: true,
+        data: [],
+        message: 'This service does not use time slots',
+      });
+      return;
+    }
+
+    // Build date window for the requested day
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart.getTime() + 86400000);
+
+    // Import Booking dynamically to avoid circular dep
+    const Booking = (await import('../models/Booking')).default;
+
+    // Count existing confirmed bookings per slot for this date
+    const existingBookings = await Booking.find({
+      service: req.params.id,
+      startDate: { $gte: dayStart, $lt: dayEnd },
+      status: { $nin: ['cancelled'] },
+      timeSlotId: { $exists: true },
+    }).select('timeSlotId');
+
+    const slotBookingCounts: Record<string, number> = {};
+    for (const b of existingBookings) {
+      if (b.timeSlotId) {
+        slotBookingCounts[b.timeSlotId] = (slotBookingCounts[b.timeSlotId] || 0) + 1;
+      }
+    }
+
+    // Build response with availability flag for each slot
+    const slots = service.timeSlots
+      .filter((s) => s.isActive)
+      .map((s) => {
+        const booked = slotBookingCounts[s._id.toString()] || 0;
+        return {
+          _id: s._id,
+          label: s.label,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          maxBookings: s.maxBookings,
+          bookedCount: booked,
+          isAvailable: booked < s.maxBookings,
+        };
+      });
+
+    res.status(200).json({ success: true, data: slots });
+  } catch (error) {
+    next(error);
+  }
+};
+

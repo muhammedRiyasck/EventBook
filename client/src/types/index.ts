@@ -17,6 +17,17 @@ export interface AuthResponse {
 export type ServiceCategory =
   "venue" | "hotel" | "caterer" | "cameraman" | "dj" | "decorator" | "other";
 
+export type BookingMode = "date_range" | "single_day" | "time_slot";
+
+export interface TimeSlot {
+  _id: string;
+  label: string;       // e.g. "Morning Show", "Evening Show"
+  startTime: string;   // "HH:mm" 24h e.g. "09:00"
+  endTime: string;     // "HH:mm" e.g. "13:00"
+  maxBookings: number; // how many bookings allowed per slot per day
+  isActive: boolean;
+}
+
 export interface AvailabilityWindow {
   startDate: string;
   endDate: string;
@@ -49,6 +60,10 @@ export interface Service {
   amenities?: string[];
   availableFrom?: string;
   availableTo?: string;
+  // Time slot fields
+  bookingMode?: BookingMode;
+  timeSlots?: TimeSlot[];
+  maxBookingsPerDay?: number;
   rating: number;
   totalReviews: number;
   isActive: boolean;
@@ -70,6 +85,13 @@ export interface Booking {
   status: BookingStatus;
   paymentStatus: "unpaid" | "paid";
   notes?: string;
+  // Time slot fields
+  timeSlotId?: string;
+  startTime?: string;   // "HH:mm"
+  endTime?: string;     // "HH:mm"
+  totalHours?: number;
+  // Guest / seat fields
+  guestCount?: number;
   createdAt: string;
   updatedAt: string;
 }

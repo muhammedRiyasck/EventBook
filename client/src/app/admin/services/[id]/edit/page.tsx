@@ -105,6 +105,16 @@ export default function EditServicePage() {
               contact: service.contact,
               tags: service.tags,
               images: service.images,
+              customCategory: service.customCategory,
+              capacity: service.capacity,
+              pricingUnit: service.pricingUnit,
+              cancellationPolicy: service.cancellationPolicy,
+              amenities: service.amenities,
+              availableFrom: service.availableFrom ? service.availableFrom.split("T")[0] : undefined,
+              availableTo: service.availableTo ? service.availableTo.split("T")[0] : undefined,
+              bookingMode: service.bookingMode,
+              timeSlots: service.timeSlots,
+              maxBookingsPerDay: service.maxBookingsPerDay,
             }}
           />
         </div>
