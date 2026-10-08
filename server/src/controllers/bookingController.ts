@@ -5,7 +5,11 @@ import Service from '../models/Service';
 import { AuthRequest } from '../middleware/auth';
 
 import appEvents from '../utils/eventEmitter';
-import { calculateTotalDays, calculateTotalPrice } from '../utils/priceCalculator';
+import {
+  calculateTotalDays,
+  calculateTotalHours,
+  calculateTotalPrice,
+} from '../utils/priceCalculator';
 
 /**
  * @desc    Create a new booking
@@ -24,32 +28,38 @@ export const createBooking = async (
       return;
     }
 
-    const { serviceId, startDate, endDate, notes, guestCount } = req.body;
+    const { serviceId, startDate, endDate, notes, guestCount, timeSlotId } = req.body;
 
     const service = await Service.findById(serviceId);
     if (!service || !service.isActive) {
-      res.status(404).json({ success: false, message: 'Service not found' });
+      res.status(404).json({ success: false, message: 'Service not found or is currently unavailable' });
       return;
     }
 
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    // Validate dates
-    if (start >= end) {
-      res.status(400).json({ success: false, message: 'End date must be after start date' });
+    // ── Date Validations ───────────────────────────────────────────────────────
+
+    // Allow same-day bookings; reject only if end is before start
+    if (start > end) {
+      res.status(400).json({ success: false, message: 'End date cannot be before start date' });
       return;
     }
 
-    if (start < new Date()) {
+    // Compare against start of today (midnight) so today's date is never rejected
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    if (start < todayStart) {
       res.status(400).json({ success: false, message: 'Start date cannot be in the past' });
       return;
     }
 
+    // Check availability window set by admin
     if (service.availableFrom && start < new Date(service.availableFrom)) {
       res.status(400).json({
         success: false,
-        message: `This service is only available starting from ${new Date(service.availableFrom).toLocaleDateString()}`,
+        message: `This service is only available starting from ${new Date(service.availableFrom).toLocaleDateString('en-IN')}`,
       });
       return;
     }
@@ -57,58 +67,175 @@ export const createBooking = async (
     if (service.availableTo && end > new Date(service.availableTo)) {
       res.status(400).json({
         success: false,
-        message: `This service is only available until ${new Date(service.availableTo).toLocaleDateString()}`,
+        message: `This service is only available until ${new Date(service.availableTo).toLocaleDateString('en-IN')}`,
       });
+      return;
+    }
+
+    // ── Time Slot Validations ─────────────────────────────────────────────────
+
+    let resolvedSlot: { _id: string; label: string; startTime: string; endTime: string } | null = null;
+    let totalHours = 0;
+
+    if (service.bookingMode === 'time_slot') {
+      if (!timeSlotId) {
+        res.status(400).json({ success: false, message: 'Please select a time slot for this service' });
+        return;
+      }
+
+      // Find and validate the requested slot
+      const slot = service.timeSlots.find(
+        (s) => s._id.toString() === timeSlotId && s.isActive
+      );
+      if (!slot) {
+        res.status(400).json({ success: false, message: 'Invalid or unavailable time slot selected' });
+        return;
+      }
+
+      resolvedSlot = {
+        _id: slot._id.toString(),
+        label: slot.label,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+      };
+
+      totalHours = calculateTotalHours(slot.startTime, slot.endTime);
+
+      // Check if this slot is already booked on the selected date (atomic via DB query)
+      const slotBookingCount = await Booking.countDocuments({
+        service: serviceId,
+        timeSlotId: timeSlotId,
+        startDate: {
+          $gte: new Date(start.toDateString()),
+          $lt: new Date(new Date(start.toDateString()).getTime() + 86400000),
+        },
+        status: { $nin: ['cancelled'] },
+      });
+
+      if (slotBookingCount >= slot.maxBookings) {
+        res.status(409).json({
+          success: false,
+          message: `The "${slot.label}" time slot is already fully booked for ${start.toLocaleDateString('en-IN')}`,
+        });
+        return;
+      }
+    }
+
+    // ── Max Bookings Per Day Check ────────────────────────────────────────────
+
+    if (service.bookingMode !== 'time_slot' && service.maxBookingsPerDay) {
+      const dayBookingCount = await Booking.countDocuments({
+        service: serviceId,
+        startDate: {
+          $gte: new Date(start.toDateString()),
+          $lt: new Date(new Date(start.toDateString()).getTime() + 86400000),
+        },
+        status: { $nin: ['cancelled'] },
+      });
+
+      if (dayBookingCount >= service.maxBookingsPerDay) {
+        res.status(409).json({
+          success: false,
+          message: `This service is fully booked for ${start.toLocaleDateString('en-IN')}. No more bookings are available on this date.`,
+        });
+        return;
+      }
+    }
+
+    // ── Guest / Seat Validations ──────────────────────────────────────────────
+
+    if (service.pricingUnit === 'per_person' && !guestCount) {
+      res.status(400).json({ success: false, message: 'Please specify the number of guests for this service' });
+      return;
+    }
+
+    if (guestCount && guestCount < 1) {
+      res.status(400).json({ success: false, message: 'Guest count must be at least 1' });
       return;
     }
 
     if (guestCount && service.capacity && guestCount > service.capacity) {
-      res.status(400).json({ 
-        success: false, 
-        message: `Guest count exceeds the maximum capacity of ${service.capacity}` 
+      res.status(400).json({
+        success: false,
+        message: `Guest count (${guestCount}) exceeds the maximum capacity of ${service.capacity}`,
       });
       return;
     }
 
-    const totalDays = calculateTotalDays(start, end);
-    const totalPrice = calculateTotalPrice(service.pricePerDay, totalDays);
+    // ── Duplicate Booking Check ───────────────────────────────────────────────
 
-    // Atomic update to reserve dates and prevent race conditions
-    const updatedService = await Service.findOneAndUpdate(
-      {
-        _id: serviceId,
-        isActive: true,
-        availability: {
-          $not: {
-            $elemMatch: {
-              isBooked: true,
-              startDate: { $lt: end },
-              endDate: { $gt: start },
+    const duplicate = await Booking.findOne({
+      user: req.user!._id,
+      service: serviceId,
+      status: { $nin: ['cancelled'] },
+      startDate: { $lte: end },
+      endDate: { $gte: start },
+    });
+
+    if (duplicate) {
+      res.status(409).json({
+        success: false,
+        message: 'You already have an active booking for this service on the selected dates',
+      });
+      return;
+    }
+
+    // ── Calculate Price ───────────────────────────────────────────────────────
+
+    const totalDays = calculateTotalDays(start, end);
+    const totalPrice = calculateTotalPrice(
+      service.pricePerDay,
+      service.pricingUnit || 'per_day',
+      totalDays,
+      totalHours,
+      guestCount || 1
+    );
+
+    // ── Atomic Reservation (date-range mode) ─────────────────────────────────
+
+    let updatedService = service;
+
+    if (service.bookingMode !== 'time_slot') {
+      // Atomically check and reserve dates to prevent race conditions
+      const reserved = await Service.findOneAndUpdate(
+        {
+          _id: serviceId,
+          isActive: true,
+          availability: {
+            $not: {
+              $elemMatch: {
+                isBooked: true,
+                startDate: { $lt: end },
+                endDate: { $gt: start },
+              },
             },
           },
         },
-      },
-      {
-        $push: {
-          availability: {
-            startDate: start,
-            endDate: end,
-            isBooked: true,
+        {
+          $push: {
+            availability: {
+              startDate: start,
+              endDate: end,
+              isBooked: true,
+            },
           },
         },
-      },
-      { new: true }
-    );
+        { new: true }
+      );
 
-    if (!updatedService) {
-      res.status(409).json({
-        success: false,
-        message: 'Service is not available for the selected dates. It may have been just booked by someone else.',
-      });
-      return;
+      if (!reserved) {
+        res.status(409).json({
+          success: false,
+          message: 'Service is not available for the selected dates. It may have just been booked by someone else.',
+        });
+        return;
+      }
+
+      updatedService = reserved;
     }
 
-    // Now that the service dates are safely reserved, create the booking record
+    // ── Create Booking Record ────────────────────────────────────────────────
+
     let booking;
     try {
       booking = await Booking.create({
@@ -121,22 +248,32 @@ export const createBooking = async (
         guestCount,
         notes,
         status: 'confirmed',
+        // time slot fields
+        ...(resolvedSlot && {
+          timeSlotId: resolvedSlot._id,
+          startTime: resolvedSlot.startTime,
+          endTime: resolvedSlot.endTime,
+          totalHours,
+        }),
       });
     } catch (err) {
-      // If booking creation fails, we must rollback the service availability
-      await Service.findByIdAndUpdate(serviceId, {
-        $pull: {
-          availability: {
-            startDate: start,
-            endDate: end,
-            isBooked: true,
+      // Rollback the date reservation if booking creation fails
+      if (service.bookingMode !== 'time_slot') {
+        await Service.findByIdAndUpdate(serviceId, {
+          $pull: {
+            availability: {
+              startDate: start,
+              endDate: end,
+              isBooked: true,
+            },
           },
-        },
-      });
+        });
+      }
       throw err;
     }
 
-    // Emit booking.created event (non-blocking)
+    // ── Emit booking.created event (non-blocking) ─────────────────────────────
+
     appEvents.emit('booking.created', {
       userName: req.user!.name,
       userEmail: req.user!.email,
@@ -146,11 +283,16 @@ export const createBooking = async (
       totalDays,
       totalPrice,
       bookingId: (booking._id?.toString() as string).toString(),
+      // optional enrichments for email
+      ...(resolvedSlot && {
+        timeSlot: `${resolvedSlot.label} (${resolvedSlot.startTime} – ${resolvedSlot.endTime})`,
+      }),
+      ...(guestCount && { guestCount }),
     });
 
     const populatedBooking = await Booking.findById(booking._id).populate(
       'service',
-      'title category location pricePerDay images contact'
+      'title category location pricePerDay images contact bookingMode pricingUnit'
     );
 
     res.status(201).json({
@@ -187,7 +329,7 @@ export const getMyBookings = async (
     }
 
     const bookings = await Booking.find(query)
-      .populate('service', 'title category location pricePerDay images contact')
+      .populate('service', 'title category location pricePerDay images contact bookingMode pricingUnit')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: bookings, count: bookings.length });
@@ -219,7 +361,7 @@ export const getAllBookings = async (
     const [bookings, total] = await Promise.all([
       Booking.find(query)
         .populate('user', 'name email phone')
-        .populate('service', 'title category location pricePerDay')
+        .populate('service', 'title category location pricePerDay bookingMode pricingUnit')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNum),
@@ -255,7 +397,7 @@ export const getBookingById = async (
   try {
     const booking = await Booking.findById(req.params.id)
       .populate('user', 'name email phone')
-      .populate('service', 'title category location pricePerDay images contact');
+      .populate('service', 'title category location pricePerDay images contact bookingMode pricingUnit timeSlots');
 
     if (!booking) {
       res.status(404).json({ success: false, message: 'Booking not found' });
@@ -290,7 +432,7 @@ export const cancelBooking = async (
   try {
     const booking = await Booking.findById(req.params.id).populate(
       'service',
-      'title availability'
+      'title availability bookingMode'
     );
 
     if (!booking) {
@@ -317,15 +459,15 @@ export const cancelBooking = async (
     booking.status = 'cancelled';
     await booking.save();
 
-    // Free up the availability window in the service
-    const service = await Service.findById(booking.service);
-    if (service) {
-      service.availability = service.availability.filter((window) => {
+    // Free up the availability window in the service (date_range mode only)
+    const serviceDoc = await Service.findById(booking.service);
+    if (serviceDoc && serviceDoc.bookingMode !== 'time_slot') {
+      serviceDoc.availability = serviceDoc.availability.filter((window) => {
         const sameStart = new Date(window.startDate).getTime() === new Date(booking.startDate).getTime();
         const sameEnd = new Date(window.endDate).getTime() === new Date(booking.endDate).getTime();
         return !(sameStart && sameEnd && window.isBooked);
       });
-      await service.save();
+      await serviceDoc.save();
     }
 
     // Emit booking.cancelled event (non-blocking)

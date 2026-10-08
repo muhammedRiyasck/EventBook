@@ -21,6 +21,11 @@ router.post(
     body('startDate').isISO8601().withMessage('Valid start date is required'),
     body('endDate').isISO8601().withMessage('Valid end date is required'),
     body('notes').optional().isLength({ max: 500 }).withMessage('Notes too long'),
+    body('timeSlotId').optional().isString().withMessage('Invalid time slot ID'),
+    body('guestCount')
+      .optional()
+      .isInt({ min: 1, max: 100000 })
+      .withMessage('Guest count must be a positive number'),
   ],
   createBooking
 );
