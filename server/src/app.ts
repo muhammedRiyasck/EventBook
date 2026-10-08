@@ -11,6 +11,8 @@ import authRoutes from './routes/auth';
 import serviceRoutes from './routes/services';
 import bookingRoutes from './routes/bookings';
 import errorHandler from './middleware/errorHandler';
+// Import eventEmitter to ensure all email listeners are registered at startup
+import './utils/eventEmitter';
 
 // Connect to MongoDB
 connectDB();
@@ -33,7 +35,7 @@ app.use(
 // Rate limiting on auth routes to prevent brute-force attacks
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // max 10 requests per window per IP
+  max: env.NODE_ENV === 'development' ? 100 : 10, // higher limit for testing locally
   message: { success: false, message: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,

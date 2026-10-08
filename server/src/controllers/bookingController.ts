@@ -4,10 +4,7 @@ import Booking from '../models/Booking';
 import Service from '../models/Service';
 import { AuthRequest } from '../middleware/auth';
 
-import {
-  sendBookingConfirmationEmail,
-  sendBookingCancellationEmail,
-} from '../utils/emailService';
+import appEvents from '../utils/eventEmitter';
 import { calculateTotalDays, calculateTotalPrice } from '../utils/priceCalculator';
 
 /**
@@ -123,8 +120,8 @@ export const createBooking = async (
       throw err;
     }
 
-    // Send confirmation email (non-blocking — don't fail the request if email fails)
-    sendBookingConfirmationEmail({
+    // Emit booking.created event (non-blocking)
+    appEvents.emit('booking.created', {
       userName: req.user!.name,
       userEmail: req.user!.email,
       serviceName: service.title,
@@ -133,7 +130,7 @@ export const createBooking = async (
       totalDays,
       totalPrice,
       bookingId: (booking._id?.toString() as string).toString(),
-    }).catch((err) => console.error('Email send failed:', err));
+    });
 
     const populatedBooking = await Booking.findById(booking._id).populate(
       'service',
@@ -315,8 +312,8 @@ export const cancelBooking = async (
       await service.save();
     }
 
-    // Send cancellation email (non-blocking)
-    sendBookingCancellationEmail({
+    // Emit booking.cancelled event (non-blocking)
+    appEvents.emit('booking.cancelled', {
       userName: req.user!.name,
       userEmail: req.user!.email,
       serviceName: (booking.service as unknown as { title: string })?.title || '',
@@ -325,7 +322,7 @@ export const cancelBooking = async (
       totalDays: booking.totalDays,
       totalPrice: booking.totalPrice,
       bookingId: (booking._id?.toString() as string).toString(),
-    }).catch((err) => console.error('Cancellation email failed:', err));
+    });
 
     res.status(200).json({ success: true, message: 'Booking cancelled successfully' });
   } catch (error) {
