@@ -63,6 +63,7 @@ export interface IService extends Document {
   createdBy: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
+  isFree: boolean;
 }
 
 const TimeSlotSchema = new Schema<ITimeSlot>(
@@ -124,8 +125,17 @@ const ServiceSchema = new Schema<IService>(
     },
     pricePerDay: {
       type: Number,
-      required: [true, 'Price per day is required'],
+      required: [
+        function(this: any) {
+          return !this.isFree;
+        },
+        'Price per day is required unless service is free'
+      ],
       min: [0, 'Price cannot be negative'],
+    },
+    isFree: {
+      type: Boolean,
+      default: false,
     },
     location: {
       city: { type: String, required: true, trim: true },

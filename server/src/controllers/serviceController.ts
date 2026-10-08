@@ -206,13 +206,16 @@ export const createService = async (
       bookingMode,
       timeSlots,
       maxBookingsPerDay,
+      isFree,
     } = req.body;
+
 
     const service = await Service.create({
       title,
       category,
       description,
-      pricePerDay: Number(pricePerDay),
+      isFree: isFree === 'true' || isFree === true,
+      pricePerDay: (isFree === 'true' || isFree === true) ? 0 : Number(pricePerDay),
       location: typeof location === 'string' ? JSON.parse(location) : location,
       contact: typeof contact === 'string' ? JSON.parse(contact) : contact,
       tags: typeof tags === 'string' ? JSON.parse(tags) : tags || [],
@@ -291,7 +294,9 @@ export const updateService = async (
       bookingMode,
       timeSlots,
       maxBookingsPerDay,
+      isFree,
     } = req.body;
+
 
     const existingImagesToKeep: string[] =
       typeof keepImages === 'string' ? JSON.parse(keepImages) : keepImages || service.images;
@@ -300,7 +305,17 @@ export const updateService = async (
     if (title) updatedFields.title = title;
     if (category) updatedFields.category = category;
     if (description) updatedFields.description = description;
-    if (pricePerDay) updatedFields.pricePerDay = Number(pricePerDay);
+    
+    if (isFree !== undefined) {
+      updatedFields.isFree = isFree === 'true' || isFree === true;
+    }
+    
+    if (updatedFields.isFree) {
+      updatedFields.pricePerDay = 0;
+    } else if (pricePerDay !== undefined) {
+      updatedFields.pricePerDay = Number(pricePerDay);
+    }
+
     if (location) updatedFields.location = typeof location === 'string' ? JSON.parse(location) : location;
     if (contact) updatedFields.contact = typeof contact === 'string' ? JSON.parse(contact) : contact;
     if (tags) updatedFields.tags = typeof tags === 'string' ? JSON.parse(tags) : tags;

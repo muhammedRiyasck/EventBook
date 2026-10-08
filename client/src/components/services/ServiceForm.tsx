@@ -44,6 +44,7 @@ interface Props {
     bookingMode?: string;
     timeSlots?: TimeSlot[];
     maxBookingsPerDay?: number;
+    isFree?: boolean;
   };
 }
 
@@ -71,6 +72,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
     title: initialData?.title || "",
     category: initialData?.category || "venue",
     description: initialData?.description || "",
+    isFree: initialData?.isFree || false,
     pricePerDay: initialData?.pricePerDay?.toString() || "",
     city: initialData?.location?.city || "",
     state: initialData?.location?.state || "",
@@ -95,11 +97,23 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
     >,
   ) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
+    
     setForm((p) => {
-      const newForm = { ...p, [name]: value };
-      const error = validateServiceField(name, value, newForm);
-      setErrors((prev) => ({ ...prev, [name]: error }));
+      let newValue: string | boolean = value;
+      if (type === 'checkbox') {
+        newValue = (e.target as HTMLInputElement).checked;
+      }
+      
+      const newForm = { ...p, [name]: newValue };
+      if (name !== 'isFree') {
+        const error = validateServiceField(name, String(newValue), newForm);
+        setErrors((prev) => ({ ...prev, [name]: error }));
+      } else {
+        if (newValue) {
+          setErrors((prev) => ({ ...prev, pricePerDay: '' }));
+        }
+      }
       return newForm;
     });
   };
@@ -178,7 +192,8 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
       formData.append("title", form.title);
       formData.append("category", form.category);
       formData.append("description", form.description);
-      formData.append("pricePerDay", form.pricePerDay);
+      formData.append("isFree", String(form.isFree));
+      if (!form.isFree) formData.append("pricePerDay", form.pricePerDay);
       formData.append(
         "location",
         JSON.stringify({
@@ -353,14 +368,26 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
 
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div>
-            <label
-              htmlFor="pricePerDay"
-              className="mb-2 block text-sm font-medium text-slate-300"
-            >
-              Base Price (₹) <span className="text-yellow-400">*</span>
-            </label>
+            <div className="mb-2 flex items-center justify-between">
+              <label
+                htmlFor="pricePerDay"
+                className="block text-sm font-medium text-slate-300"
+              >
+                Base Price (₹) {!form.isFree && <span className="text-yellow-400">*</span>}
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-300">
+                <input
+                  type="checkbox"
+                  name="isFree"
+                  checked={form.isFree}
+                  onChange={handleChange}
+                  className="rounded border-white/[0.08] bg-white/[0.04] text-yellow-400 focus:ring-yellow-400/20"
+                />
+                Free Service
+              </label>
+            </div>
 
-            <div className="relative flex gap-2">
+            <div className={`relative flex gap-2 ${form.isFree ? 'opacity-50 pointer-events-none' : ''}`}>
               <div className="relative flex-1">
                 <IndianRupee
                   size={15}

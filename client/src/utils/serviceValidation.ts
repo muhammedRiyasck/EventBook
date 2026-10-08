@@ -17,6 +17,7 @@ export interface ServiceFormState {
   amenities: string[];
   availableFrom: string;
   availableTo: string;
+  isFree?: boolean;
 }
 
 export const validateServiceField = (
@@ -44,8 +45,10 @@ export const validateServiceField = (
         return "Description must be at least 10 characters";
       break;
     case "pricePerDay":
-      if (!value) return "Price is required";
-      if (Number(value) <= 0) return "Price must be greater than 0";
+      if (!formState.isFree) {
+        if (!value) return "Price is required";
+        if (Number(value) <= 0) return "Price must be greater than 0";
+      }
       break;
     case "capacity":
       if (value && Number(value) < 1) return "Capacity must be at least 1";

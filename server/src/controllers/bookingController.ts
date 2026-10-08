@@ -259,7 +259,8 @@ export const createBooking = async (
         totalPrice,
         guestCount,
         notes,
-        status: 'confirmed',
+        status: 'confirmed', // Keep it confirmed for now since Stripe isn't active
+        paymentStatus: service.isFree ? 'paid' : 'unpaid',
         // time slot fields
         ...(resolvedSlot && {
           timeSlotId: resolvedSlot._id,
