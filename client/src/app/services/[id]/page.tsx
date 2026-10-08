@@ -14,6 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertCircle,
+  Clock,
+  Users,
 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -33,6 +35,23 @@ const CATEGORY_ICONS: Record<string, string> = {
   other: "✨",
 };
 
+interface AvailableSlot {
+  _id: string;
+  label: string;
+  startTime: string;
+  endTime: string;
+  maxBookings: number;
+  bookedCount: number;
+  isAvailable: boolean;
+}
+
+// Derive hours from HH:mm strings
+const hoursBetween = (start: string, end: string): number => {
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  return Math.max(0, (eh * 60 + em - (sh * 60 + sm)) / 60);
+};
+
 export default function ServiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -41,10 +60,18 @@ export default function ServiceDetailPage() {
   const [service, setService] = useState<Service | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
+
+  // Booking form state
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
+  const [guestCount, setGuestCount] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [booking, setBooking] = useState(false);
+
+  // Time slot state
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState<string>("");
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   useEffect(() => {
     const fetch = async () => {
@@ -61,35 +88,136 @@ export default function ServiceDetailPage() {
     fetch();
   }, [id, router]);
 
-  // Calculate total
+  // Fetch available slots when date is picked (time_slot mode only)
+  useEffect(() => {
+    if (!service || service.bookingMode !== "time_slot" || !startDate) {
+      setAvailableSlots([]);
+      setSelectedSlotId("");
+      return;
+    }
+    const fetchSlots = async () => {
+      setLoadingSlots(true);
+      setSelectedSlotId("");
+      try {
+        const dateStr = startDate.toISOString().split("T")[0];
+        const { data } = await api.get(
+          `/services/${id}/available-slots?date=${dateStr}`
+        );
+        setAvailableSlots(data.data || []);
+      } catch {
+        toast.error("Failed to load time slots");
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+    fetchSlots();
+  }, [startDate, id, service]);
+
+  const bookingMode = service?.bookingMode ?? "date_range";
+  const pricingUnit = service?.pricingUnit ?? "per_day";
+
+  // ── Price Calculation ──────────────────────────────────────────────────────
   const totalDays =
     startDate && endDate
       ? Math.max(
           1,
-          Math.ceil(
-            (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24),
-          ),
+          Math.round(
+            (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+          ) + 1
         )
+      : startDate
+      ? 1
       : 0;
-  const totalPrice = service ? totalDays * service.pricePerDay : 0;
 
+  const selectedSlot = availableSlots.find((s) => s._id === selectedSlotId);
+  const totalHours = selectedSlot
+    ? hoursBetween(selectedSlot.startTime, selectedSlot.endTime)
+    : 0;
+
+  const parsedGuests = Number(guestCount) || 1;
+
+  const totalPrice = (() => {
+    if (!service || totalDays === 0) return 0;
+    const base = service.pricePerDay;
+    switch (pricingUnit) {
+      case "per_hour":
+        return base * Math.max(1, totalHours);
+      case "per_person":
+        return base * Math.max(1, parsedGuests);
+      case "per_project":
+        return base;
+      default:
+        return base * totalDays;
+    }
+  })();
+
+  // ── Price summary label ────────────────────────────────────────────────────
+  const priceSummaryLine = (() => {
+    if (!service) return "";
+    const fmt = (n: number) => new Intl.NumberFormat("en-IN").format(n);
+    const base = `₹${fmt(service.pricePerDay)}`;
+    switch (pricingUnit) {
+      case "per_hour":
+        return `${base} × ${totalHours.toFixed(1)} hr${totalHours !== 1 ? "s" : ""}`;
+      case "per_person":
+        return `${base} × ${parsedGuests} guest${parsedGuests !== 1 ? "s" : ""}`;
+      case "per_project":
+        return "Fixed project fee";
+      default:
+        return `${base} × ${totalDays} day${totalDays !== 1 ? "s" : ""}`;
+    }
+  })();
+
+  const pricingLabel = (({
+    per_day: "/ day",
+    per_hour: "/ hr",
+    per_person: "/ person",
+    per_project: "flat",
+  } as Record<string, string>)[pricingUnit ?? "per_day"]) ?? "/ day";
+
+  // ── Booking submit ─────────────────────────────────────────────────────────
   const handleBook = async () => {
     if (!isAuthenticated) {
       toast.error("Please sign in to book a service");
       router.push("/login");
       return;
     }
-    if (!startDate || !endDate) {
-      toast.error("Please select both start and end dates");
+    if (!startDate) {
+      toast.error("Please select a date");
       return;
     }
+    if (bookingMode === "date_range" && !endDate) {
+      toast.error("Please select an end date");
+      return;
+    }
+    if (bookingMode === "time_slot" && !selectedSlotId) {
+      toast.error("Please select a time slot");
+      return;
+    }
+    if (pricingUnit === "per_person" && !guestCount) {
+      toast.error("Please enter the number of guests");
+      return;
+    }
+    if (
+      service?.capacity &&
+      Number(guestCount) > service.capacity
+    ) {
+      toast.error(`Guest count exceeds maximum capacity of ${service.capacity}`);
+      return;
+    }
+
     setBooking(true);
     try {
+      const effectiveEnd =
+        bookingMode === "date_range" ? endDate : startDate;
+
       await api.post("/bookings", {
         serviceId: id,
         startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+        endDate: (effectiveEnd ?? startDate).toISOString(),
         notes,
+        ...(selectedSlotId && { timeSlotId: selectedSlotId }),
+        ...(guestCount && { guestCount: Number(guestCount) }),
       });
       toast.success("🎉 Booking confirmed! Check your email.");
       router.push("/bookings");
@@ -100,6 +228,15 @@ export default function ServiceDetailPage() {
       setBooking(false);
     }
   };
+
+  // ── Book button disabled state ─────────────────────────────────────────────
+  const isBookDisabled = (() => {
+    if (booking || !startDate) return true;
+    if (bookingMode === "date_range" && !endDate) return true;
+    if (bookingMode === "time_slot" && !selectedSlotId) return true;
+    if (pricingUnit === "per_person" && !guestCount) return true;
+    return false;
+  })();
 
   if (loading) {
     return (
@@ -123,7 +260,7 @@ export default function ServiceDetailPage() {
 
   const images = service.images?.length ? service.images : [];
   const formattedPrice = new Intl.NumberFormat("en-IN").format(
-    service.pricePerDay,
+    service.pricePerDay
   );
 
   return (
@@ -189,7 +326,7 @@ export default function ServiceDetailPage() {
                       className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/40 text-white backdrop-blur-md transition-all duration-200 hover:border-yellow-400/40 hover:bg-yellow-400/15 hover:text-yellow-400"
                       onClick={() =>
                         setActiveImage(
-                          (p) => (p - 1 + images.length) % images.length,
+                          (p) => (p - 1 + images.length) % images.length
                         )
                       }
                     >
@@ -262,6 +399,17 @@ export default function ServiceDetailPage() {
                       ({service.totalReviews} reviews)
                     </span>
                   </div>
+                )}
+
+                {/* Booking mode badge */}
+                {service.bookingMode && service.bookingMode !== "date_range" && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1.5 text-xs font-semibold text-blue-400">
+                    {service.bookingMode === "time_slot" ? (
+                      <><Clock size={11} /> Time Slots Available</>
+                    ) : (
+                      <><CalendarDays size={11} /> Single Day</>
+                    )}
+                  </span>
                 )}
               </div>
 
@@ -393,24 +541,34 @@ export default function ServiceDetailPage() {
                     </span>
                   </div>
 
-                  <span className="mb-1 text-sm text-slate-500">/ day</span>
+                  <span className="mb-1 text-sm text-slate-500">
+                    {pricingLabel}
+                  </span>
                 </div>
+
+                {service.capacity && (
+                  <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+                    <Users size={12} />
+                    Max capacity: {service.capacity} guests
+                  </p>
+                )}
               </div>
 
               {/* Booking Form */}
               <div className="space-y-5 p-6 sm:p-7">
-                {/* Dates */}
+
+                {/* ── Date(s) ──────────────────────────────────── */}
                 <div className="space-y-4">
                   <div>
                     <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Start Date
+                      {bookingMode === "date_range" ? "Start Date" : "Event Date"}
                     </label>
 
                     <DatePicker
                       selected={startDate}
                       onChange={(date: Date | null) => {
                         setStartDate(date);
-                        if (endDate && date && date >= endDate) {
+                        if (endDate && date && date > endDate) {
                           setEndDate(null);
                         }
                       }}
@@ -420,46 +578,119 @@ export default function ServiceDetailPage() {
                           : new Date()
                       }
                       maxDate={service.availableTo ? new Date(service.availableTo) : undefined}
-                      placeholderText="Select start date"
+                      placeholderText="Select date"
                       className="w-full rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/50 focus:bg-white/[0.06] focus:ring-4 focus:ring-yellow-400/10"
                       dateFormat="dd MMM yyyy"
                       id="start-date-picker"
                     />
                   </div>
 
-                  <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      End Date
-                    </label>
+                  {/* End date — only for date_range */}
+                  {bookingMode === "date_range" && (
+                    <div>
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        End Date
+                      </label>
 
-                    <DatePicker
-                      selected={endDate}
-                      onChange={(date: Date | null) => setEndDate(date)}
-                      minDate={
-                        startDate
-                          ? new Date(startDate.getTime() + 86400000)
-                          : service.availableFrom
-                            ? new Date(Math.max(new Date().getTime(), new Date(service.availableFrom).getTime()))
-                            : new Date()
-                      }
-                      maxDate={service.availableTo ? new Date(service.availableTo) : undefined}
-                      placeholderText="Select end date"
-                      className="w-full rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/50 focus:bg-white/[0.06] focus:ring-4 focus:ring-yellow-400/10"
-                      dateFormat="dd MMM yyyy"
-                      id="end-date-picker"
-                    />
-                  </div>
+                      <DatePicker
+                        selected={endDate}
+                        onChange={(date: Date | null) => setEndDate(date)}
+                        minDate={startDate ? startDate : new Date()}
+                        maxDate={service.availableTo ? new Date(service.availableTo) : undefined}
+                        placeholderText="Select end date"
+                        className="w-full rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/50 focus:bg-white/[0.06] focus:ring-4 focus:ring-yellow-400/10"
+                        dateFormat="dd MMM yyyy"
+                        id="end-date-picker"
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Price Summary */}
-                {totalDays > 0 && (
+                {/* ── Time Slots ────────────────────────────────── */}
+                {bookingMode === "time_slot" && startDate && (
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Select Time Slot
+                    </label>
+
+                    {loadingSlots ? (
+                      <div className="flex items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.025] py-6">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-600 border-t-yellow-400" />
+                        <span className="ml-2 text-xs text-slate-500">Loading slots…</span>
+                      </div>
+                    ) : availableSlots.length === 0 ? (
+                      <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4 text-center text-xs text-slate-500">
+                        No time slots available for this date
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {availableSlots.map((slot) => (
+                          <button
+                            key={slot._id}
+                            type="button"
+                            disabled={!slot.isAvailable}
+                            onClick={() => setSelectedSlotId(slot._id)}
+                            className={`flex items-center justify-between rounded-xl border p-3.5 text-left transition-all duration-150 ${
+                              !slot.isAvailable
+                                ? "cursor-not-allowed border-white/[0.04] bg-white/[0.015] opacity-40"
+                                : selectedSlotId === slot._id
+                                ? "border-yellow-400/50 bg-yellow-400/[0.08] text-white"
+                                : "border-white/[0.07] bg-white/[0.025] text-slate-300 hover:border-white/[0.14] hover:bg-white/[0.04]"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Clock size={14} className={selectedSlotId === slot._id ? "text-yellow-400" : "text-slate-500"} />
+                              <div>
+                                <p className="text-sm font-medium">{slot.label}</p>
+                                <p className="text-xs text-slate-500">
+                                  {slot.startTime} – {slot.endTime}
+                                  {" · "}
+                                  {hoursBetween(slot.startTime, slot.endTime).toFixed(1)} hrs
+                                </p>
+                              </div>
+                            </div>
+                            {!slot.isAvailable ? (
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-red-400">Booked</span>
+                            ) : (
+                              <span className={`h-4 w-4 rounded-full border-2 transition-all ${selectedSlotId === slot._id ? "border-yellow-400 bg-yellow-400" : "border-white/20"}`} />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Guest Count ───────────────────────────────── */}
+                {(pricingUnit === "per_person" || service.capacity) && (
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Number of Guests
+                      {pricingUnit !== "per_person" && (
+                        <span className="ml-1 normal-case tracking-normal text-slate-600">(optional)</span>
+                      )}
+                    </label>
+                    <div className="relative">
+                      <Users size={14} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                      <input
+                        id="guest-count"
+                        type="number"
+                        min={1}
+                        max={service.capacity}
+                        placeholder={service.capacity ? `Max ${service.capacity}` : "e.g. 50"}
+                        value={guestCount}
+                        onChange={(e) => setGuestCount(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-white/[0.045] py-3 pl-10 pr-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/50 focus:bg-white/[0.06] focus:ring-4 focus:ring-yellow-400/10"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Price Summary ─────────────────────────────── */}
+                {totalDays > 0 && (bookingMode !== "time_slot" || selectedSlot) && (
                   <div className="rounded-xl border border-white/[0.07] bg-white/[0.035] p-4">
                     <div className="flex items-center justify-between py-1 text-sm text-slate-400">
-                      <span>
-                        ₹{formattedPrice} × {totalDays} day
-                        {totalDays > 1 ? "s" : ""}
-                      </span>
-
+                      <span>{priceSummaryLine}</span>
                       <span className="text-slate-300">
                         ₹{new Intl.NumberFormat("en-IN").format(totalPrice)}
                       </span>
@@ -479,7 +710,7 @@ export default function ServiceDetailPage() {
                   </div>
                 )}
 
-                {/* Notes */}
+                {/* ── Notes ────────────────────────────────────── */}
                 <div>
                   <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
                     Special Requests
@@ -491,19 +722,19 @@ export default function ServiceDetailPage() {
                   <textarea
                     className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm leading-6 text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/50 focus:bg-white/[0.06] focus:ring-4 focus:ring-yellow-400/10"
                     placeholder="Any special requirements or notes..."
-                    rows={4}
+                    rows={3}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     id="booking-notes"
                   />
                 </div>
 
-                {/* Book Button */}
+                {/* ── Book Button ───────────────────────────────── */}
                 <button
                   id="book-now-btn"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-yellow-400 px-4 py-3.5 text-sm font-bold text-slate-950 shadow-[0_10px_30px_rgba(250,204,21,0.12)] transition-all duration-200 hover:bg-yellow-300 hover:shadow-[0_12px_35px_rgba(250,204,21,0.2)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                  className="flex w-full items-center cursor-pointer justify-center gap-2 rounded-xl bg-yellow-400 px-4 py-3.5 text-sm font-bold text-slate-950 shadow-[0_10px_30px_rgba(250,204,21,0.12)] transition-all duration-200 hover:bg-yellow-300 hover:shadow-[0_12px_35px_rgba(250,204,21,0.2)] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                   onClick={handleBook}
-                  disabled={booking || !startDate || !endDate}
+                  disabled={isBookDisabled}
                 >
                   {booking ? (
                     <>
