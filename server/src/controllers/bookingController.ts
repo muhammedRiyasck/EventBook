@@ -50,26 +50,38 @@ export const createBooking = async (
     // Compare against start of today (midnight) so today's date is never rejected
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    if (start < todayStart) {
+    const startDay = new Date(start);
+    startDay.setHours(0, 0, 0, 0);
+    if (startDay < todayStart) {
       res.status(400).json({ success: false, message: 'Start date cannot be in the past' });
       return;
     }
 
     // Check availability window set by admin
-    if (service.availableFrom && start < new Date(service.availableFrom)) {
-      res.status(400).json({
-        success: false,
-        message: `This service is only available starting from ${new Date(service.availableFrom).toLocaleDateString('en-IN')}`,
-      });
-      return;
+    if (service.availableFrom) {
+      const availFrom = new Date(service.availableFrom);
+      availFrom.setHours(0, 0, 0, 0);
+      if (startDay < availFrom) {
+        res.status(400).json({
+          success: false,
+          message: `This service is only available starting from ${availFrom.toLocaleDateString('en-IN')}`,
+        });
+        return;
+      }
     }
 
-    if (service.availableTo && end > new Date(service.availableTo)) {
-      res.status(400).json({
-        success: false,
-        message: `This service is only available until ${new Date(service.availableTo).toLocaleDateString('en-IN')}`,
-      });
-      return;
+    if (service.availableTo) {
+      const availTo = new Date(service.availableTo);
+      availTo.setHours(23, 59, 59, 999);
+      const endDay = new Date(end);
+      endDay.setHours(0, 0, 0, 0);
+      if (endDay > availTo) {
+        res.status(400).json({
+          success: false,
+          message: `This service is only available until ${availTo.toLocaleDateString('en-IN')}`,
+        });
+        return;
+      }
     }
 
     // ── Time Slot Validations ─────────────────────────────────────────────────

@@ -16,6 +16,12 @@ import {
   AlertCircle,
   Clock,
   Users,
+  Shield,
+  Wifi,
+  CheckCircle2,
+  CalendarRange,
+  Info,
+  Layers,
 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -34,6 +40,21 @@ const CATEGORY_ICONS: Record<string, string> = {
   decorator: "🌸",
   other: "✨",
 };
+
+const CANCELLATION_COLOR: Record<string, { text: string; border: string; bg: string }> = {
+  Flexible: { text: "text-emerald-400", border: "border-emerald-400/20", bg: "bg-emerald-400/10" },
+  Moderate: { text: "text-yellow-400", border: "border-yellow-400/20", bg: "bg-yellow-400/10" },
+  Strict: { text: "text-red-400", border: "border-red-400/20", bg: "bg-red-400/10" },
+};
+
+const CANCELLATION_DESC: Record<string, string> = {
+  Flexible: "Free cancellation anytime before the event date.",
+  Moderate: "Free cancellation up to 7 days before; 50% refund within 7 days.",
+  Strict: "Non-refundable after booking confirmation.",
+};
+
+const fmtDate = (d: string | Date) =>
+  new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
 interface AvailableSlot {
   _id: string;
@@ -88,29 +109,35 @@ export default function ServiceDetailPage() {
     fetch();
   }, [id, router]);
 
-  // Fetch available slots when date is picked (time_slot mode only)
+  const [dailyStats, setDailyStats] = useState<{ bookings: number; guests: number } | null>(null);
+
+  // Fetch available slots and daily stats when date is picked
   useEffect(() => {
-    if (!service || service.bookingMode !== "time_slot" || !startDate) {
+    if (!service || !startDate) {
       setAvailableSlots([]);
       setSelectedSlotId("");
+      setDailyStats(null);
       return;
     }
-    const fetchSlots = async () => {
+    const fetchSlotsAndStats = async () => {
       setLoadingSlots(true);
-      setSelectedSlotId("");
+      if (service.bookingMode === "time_slot") setSelectedSlotId("");
       try {
-        const dateStr = startDate.toISOString().split("T")[0];
+        // Construct local YYYY-MM-DD
+        const tzOffset = startDate.getTimezoneOffset() * 60000;
+        const localISOTime = new Date(startDate.getTime() - tzOffset).toISOString().split('T')[0];
         const { data } = await api.get(
-          `/services/${id}/available-slots?date=${dateStr}`
+          `/services/${id}/available-slots?date=${localISOTime}`
         );
         setAvailableSlots(data.data || []);
+        setDailyStats(data.dailyStats || null);
       } catch {
-        toast.error("Failed to load time slots");
+        toast.error("Failed to load availability");
       } finally {
         setLoadingSlots(false);
       }
     };
-    fetchSlots();
+    fetchSlotsAndStats();
   }, [startDate, id, service]);
 
   const bookingMode = service?.bookingMode ?? "date_range";
@@ -175,6 +202,13 @@ export default function ServiceDetailPage() {
     per_project: "flat",
   } as Record<string, string>)[pricingUnit ?? "per_day"]) ?? "/ day";
 
+  const pricingUnitLabel = (({
+    per_day: "per day",
+    per_hour: "per hour",
+    per_person: "per person",
+    per_project: "flat fee",
+  } as Record<string, string>)[pricingUnit ?? "per_day"]) ?? "per day";
+
   // ── Booking submit ─────────────────────────────────────────────────────────
   const handleBook = async () => {
     if (!isAuthenticated) {
@@ -235,6 +269,13 @@ export default function ServiceDetailPage() {
     if (bookingMode === "date_range" && !endDate) return true;
     if (bookingMode === "time_slot" && !selectedSlotId) return true;
     if (pricingUnit === "per_person" && !guestCount) return true;
+    if (service?.capacity) {
+      const remainingCapacity = service.capacity - (dailyStats?.guests || 0);
+      if (Number(guestCount) > remainingCapacity) return true;
+    }
+    if (service?.maxBookingsPerDay && dailyStats && dailyStats.bookings >= service.maxBookingsPerDay) {
+      return true;
+    }
     return false;
   })();
 
@@ -259,9 +300,8 @@ export default function ServiceDetailPage() {
   if (!service) return null;
 
   const images = service.images?.length ? service.images : [];
-  const formattedPrice = new Intl.NumberFormat("en-IN").format(
-    service.pricePerDay
-  );
+  const formattedPrice = new Intl.NumberFormat("en-IN").format(service.pricePerDay);
+  const cancelStyle = service.cancellationPolicy ? CANCELLATION_COLOR[service.cancellationPolicy] : null;
 
   return (
     <div className="min-h-screen bg-[#050d1e] px-4 pb-20 pt-[100px] text-white sm:px-6">
@@ -378,26 +418,20 @@ export default function ServiceDetailPage() {
 
             {/* Service Info */}
             <div>
-              {/* Category + Rating */}
+              {/* Category + Rating + Badges */}
               <div className="mb-4 flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/20 bg-yellow-400/10 px-3 py-1.5 text-xs font-semibold text-yellow-400">
                   <span>{CATEGORY_ICONS[service.category]}</span>
-                  {service.category}
+                  {service.category === "other" && service.customCategory
+                    ? service.customCategory
+                    : service.category}
                 </span>
 
                 {service.rating > 0 && (
                   <div className="flex items-center gap-1.5 text-sm">
-                    <Star
-                      size={15}
-                      fill="currentColor"
-                      className="text-yellow-400"
-                    />
-                    <span className="font-semibold text-yellow-400">
-                      {service.rating.toFixed(1)}
-                    </span>
-                    <span className="text-slate-500">
-                      ({service.totalReviews} reviews)
-                    </span>
+                    <Star size={15} fill="currentColor" className="text-yellow-400" />
+                    <span className="font-semibold text-yellow-400">{service.rating.toFixed(1)}</span>
+                    <span className="text-slate-500">({service.totalReviews} reviews)</span>
                   </div>
                 )}
 
@@ -409,6 +443,14 @@ export default function ServiceDetailPage() {
                     ) : (
                       <><CalendarDays size={11} /> Single Day</>
                     )}
+                  </span>
+                )}
+
+                {/* Cancellation policy badge */}
+                {service.cancellationPolicy && cancelStyle && (
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-semibold ${cancelStyle.border} ${cancelStyle.bg} ${cancelStyle.text}`}>
+                    <Shield size={11} />
+                    {service.cancellationPolicy}
                   </span>
                 )}
               </div>
@@ -433,6 +475,130 @@ export default function ServiceDetailPage() {
                   {service.description}
                 </p>
               </div>
+
+              {/* ── Key Details Grid ────────────────────────────────────── */}
+              <div className="mb-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {/* Pricing unit */}
+                <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-yellow-400/10 text-yellow-400">
+                    <IndianRupee size={16} />
+                  </div>
+                  <div>
+                    <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Pricing</p>
+                    <p className="text-sm font-semibold text-white">
+                      ₹{formattedPrice}{" "}
+                      <span className="font-normal text-slate-400">{pricingUnitLabel}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Capacity */}
+                {service.capacity && (
+                  <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-400/10 text-blue-400">
+                      <Users size={16} />
+                    </div>
+                    <div>
+                      <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Capacity</p>
+                      <p className="text-sm font-semibold text-white">
+                        {service.capacity}{" "}
+                        <span className="font-normal text-slate-400">guests max</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Max bookings per day */}
+                {service.maxBookingsPerDay && (
+                  <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-purple-400/10 text-purple-400">
+                      <Layers size={16} />
+                    </div>
+                    <div>
+                      <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Bookings/Day</p>
+                      <p className="text-sm font-semibold text-white">
+                        {service.maxBookingsPerDay}{" "}
+                        <span className="font-normal text-slate-400">max bookings</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Available From */}
+                {service.availableFrom && (
+                  <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-400">
+                      <CalendarRange size={16} />
+                    </div>
+                    <div>
+                      <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Available From</p>
+                      <p className="text-sm font-semibold text-white">{fmtDate(service.availableFrom)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Available To */}
+                {service.availableTo && (
+                  <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-400/10 text-red-400">
+                      <CalendarRange size={16} />
+                    </div>
+                    <div>
+                      <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Available Until</p>
+                      <p className="text-sm font-semibold text-white">{fmtDate(service.availableTo)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Booking mode */}
+                <div className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-400/10 text-indigo-400">
+                    <Info size={16} />
+                  </div>
+                  <div>
+                    <p className="mb-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Booking Type</p>
+                    <p className="text-sm font-semibold capitalize text-white">{bookingMode.replace("_", " ")}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Amenities ──────────────────────────────────────────────── */}
+              {service.amenities && service.amenities.length > 0 && (
+                <div className="mb-8 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
+                  <div className="mb-4 flex items-center gap-2">
+                    <Wifi size={16} className="text-yellow-400" />
+                    <h3 className="text-base font-bold text-white">Amenities &amp; Features</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {service.amenities.map((amenity) => (
+                      <div key={amenity} className="flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2.5">
+                        <CheckCircle2 size={14} className="shrink-0 text-emerald-400" />
+                        <span className="text-sm text-slate-300">{amenity}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Cancellation Policy ─────────────────────────────────── */}
+              {service.cancellationPolicy && cancelStyle && (
+                <div className="mb-8 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Shield size={16} className="text-yellow-400" />
+                    <h3 className="text-base font-bold text-white">Cancellation Policy</h3>
+                  </div>
+                  <div className={`flex items-start gap-3 rounded-xl border p-4 ${cancelStyle.border} ${cancelStyle.bg}`}>
+                    <div className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${
+                      service.cancellationPolicy === "Flexible" ? "bg-emerald-400" :
+                      service.cancellationPolicy === "Moderate" ? "bg-yellow-400" : "bg-red-400"
+                    }`} />
+                    <div>
+                      <p className={`text-sm font-semibold ${cancelStyle.text}`}>{service.cancellationPolicy}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-400">{CANCELLATION_DESC[service.cancellationPolicy]}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Tags */}
               {service.tags?.length > 0 && (
@@ -546,12 +712,27 @@ export default function ServiceDetailPage() {
                   </span>
                 </div>
 
-                {service.capacity && (
-                  <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-                    <Users size={12} />
-                    Max capacity: {service.capacity} guests
-                  </p>
-                )}
+                {/* Quick info pills */}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {service.capacity && (
+                    <p className="flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.03] px-2.5 py-1 text-xs text-slate-400">
+                      <Users size={11} />
+                      Max {service.capacity} guests
+                    </p>
+                  )}
+                  {service.cancellationPolicy && cancelStyle && (
+                    <p className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${cancelStyle.border} ${cancelStyle.bg} ${cancelStyle.text}`}>
+                      <Shield size={11} />
+                      {service.cancellationPolicy}
+                    </p>
+                  )}
+                  {service.availableFrom && (
+                    <p className="flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.03] px-2.5 py-1 text-xs text-slate-400">
+                      <CalendarRange size={11} />
+                      From {fmtDate(service.availableFrom)}
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Booking Form */}
@@ -646,11 +827,19 @@ export default function ServiceDetailPage() {
                                   {slot.startTime} – {slot.endTime}
                                   {" · "}
                                   {hoursBetween(slot.startTime, slot.endTime).toFixed(1)} hrs
+                                  {slot.maxBookings > 0 && (
+                                    <>
+                                      {" · "}
+                                      <span className={slot.isAvailable ? "text-emerald-400/80" : "text-red-400/80"}>
+                                        {Math.max(0, slot.maxBookings - slot.bookedCount)} left
+                                      </span>
+                                    </>
+                                  )}
                                 </p>
                               </div>
                             </div>
                             {!slot.isAvailable ? (
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-red-400">Booked</span>
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-red-400">Full</span>
                             ) : (
                               <span className={`h-4 w-4 rounded-full border-2 transition-all ${selectedSlotId === slot._id ? "border-yellow-400 bg-yellow-400" : "border-white/20"}`} />
                             )}
@@ -664,10 +853,17 @@ export default function ServiceDetailPage() {
                 {/* ── Guest Count ───────────────────────────────── */}
                 {(pricingUnit === "per_person" || service.capacity) && (
                   <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Number of Guests
-                      {pricingUnit !== "per_person" && (
-                        <span className="ml-1 normal-case tracking-normal text-slate-600">(optional)</span>
+                    <label className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      <span>
+                        Number of Guests
+                        {pricingUnit !== "per_person" && (
+                          <span className="ml-1 normal-case tracking-normal text-slate-600">(optional)</span>
+                        )}
+                      </span>
+                      {service.capacity && dailyStats && (
+                        <span className={service.capacity - dailyStats.guests > 0 ? "text-emerald-400" : "text-red-400"}>
+                          {Math.max(0, service.capacity - dailyStats.guests)} spots left today
+                        </span>
                       )}
                     </label>
                     <div className="relative">
@@ -683,30 +879,65 @@ export default function ServiceDetailPage() {
                         className="w-full rounded-xl border border-white/10 bg-white/[0.045] py-3 pl-10 pr-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/50 focus:bg-white/[0.06] focus:ring-4 focus:ring-yellow-400/10"
                       />
                     </div>
+                    {pricingUnit !== "per_person" && (
+                      <p className="mt-1.5 text-[11px] text-slate-500">
+                        This service is priced {pricingUnitLabel}, not per guest.
+                      </p>
+                    )}
                   </div>
                 )}
 
                 {/* ── Price Summary ─────────────────────────────── */}
                 {totalDays > 0 && (bookingMode !== "time_slot" || selectedSlot) && (
                   <div className="rounded-xl border border-white/[0.07] bg-white/[0.035] p-4">
-                    <div className="flex items-center justify-between py-1 text-sm text-slate-400">
-                      <span>{priceSummaryLine}</span>
-                      <span className="text-slate-300">
-                        ₹{new Intl.NumberFormat("en-IN").format(totalPrice)}
-                      </span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm text-slate-400">
+                        <span>{priceSummaryLine}</span>
+                        <span className="text-slate-300">
+                          ₹{new Intl.NumberFormat("en-IN").format(totalPrice)}
+                        </span>
+                      </div>
+
+                      {/* Time slot detail */}
+                      {bookingMode === "time_slot" && selectedSlot && (
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <Clock size={11} />
+                            {selectedSlot.label} ({selectedSlot.startTime} – {selectedSlot.endTime})
+                          </span>
+                          <span>{totalHours.toFixed(1)} hrs</span>
+                        </div>
+                      )}
+
+                      {/* Guest count detail */}
+                      {guestCount && (
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                          <span className="flex items-center gap-1"><Users size={11} /> Guests</span>
+                          <span>{guestCount}</span>
+                        </div>
+                      )}
+
+                      {/* Date range duration */}
+                      {bookingMode === "date_range" && startDate && endDate && (
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                          <span className="flex items-center gap-1"><CalendarDays size={11} /> Duration</span>
+                          <span>{totalDays} day{totalDays !== 1 ? "s" : ""}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="my-3 h-px bg-white/[0.07]" />
 
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-white">
-                        Total
-                      </span>
-
+                      <span className="text-sm font-semibold text-white">Total</span>
                       <span className="text-lg font-bold text-yellow-400">
                         ₹{new Intl.NumberFormat("en-IN").format(totalPrice)}
                       </span>
                     </div>
+
+                    <p className="mt-2 text-[11px] text-slate-600">
+                      * Payment collected offline. Booking is confirmed immediately.
+                    </p>
                   </div>
                 )}
 
@@ -728,6 +959,12 @@ export default function ServiceDetailPage() {
                     id="booking-notes"
                   />
                 </div>
+
+                {service.maxBookingsPerDay && dailyStats && dailyStats.bookings >= service.maxBookingsPerDay && (
+                  <div className="rounded-xl border border-red-400/20 bg-red-400/10 p-3 text-center text-xs text-red-400">
+                    This service is fully booked for the selected date.
+                  </div>
+                )}
 
                 {/* ── Book Button ───────────────────────────────── */}
                 <button

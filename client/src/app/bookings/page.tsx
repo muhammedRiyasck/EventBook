@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, MapPin, IndianRupee, X } from "lucide-react";
+import { CalendarDays, MapPin, IndianRupee, X, Clock, Users, CreditCard } from "lucide-react";
 import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { Booking, Service } from "@/types";
@@ -272,16 +272,60 @@ export default function BookingsPage() {
                       </p>
                     </div>
 
-                    {/* Duration */}
-                    <div className="rounded-xl border border-white/[0.06] bg-black/[0.08] p-3.5">
-                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
-                        Duration
+                    {/* Duration / Time Slot */}
+                    {booking.startTime && booking.endTime ? (
+                      <div className="rounded-xl border border-white/[0.06] bg-black/[0.08] p-3.5">
+                        <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                          <Clock size={13} />
+                          Time Slot
+                        </div>
+                        <p className="text-sm font-medium text-slate-300">
+                          {booking.startTime} – {booking.endTime}
+                          {booking.totalHours && (
+                            <span className="ml-2 text-xs text-slate-500">({booking.totalHours.toFixed(1)} hrs)</span>
+                          )}
+                        </p>
                       </div>
+                    ) : (
+                      <div className="rounded-xl border border-white/[0.06] bg-black/[0.08] p-3.5">
+                        <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                          Duration
+                        </div>
+                        <p className="text-sm font-medium text-slate-300">
+                          {booking.totalDays} day{booking.totalDays > 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    )}
 
-                      <p className="text-sm font-medium text-slate-300">
-                        {booking.totalDays} day
-                        {booking.totalDays > 1 ? "s" : ""}
-                      </p>
+                    {/* Guest Count */}
+                    {booking.guestCount && (
+                      <div className="rounded-xl border border-white/[0.06] bg-black/[0.08] p-3.5">
+                        <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                          <Users size={13} />
+                          Guests
+                        </div>
+                        <p className="text-sm font-medium text-slate-300">
+                          {booking.guestCount} guest{booking.guestCount > 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Payment Status */}
+                    <div className="rounded-xl border border-white/[0.06] bg-black/[0.08] p-3.5">
+                      <div className="mb-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+                        <CreditCard size={13} />
+                        Payment
+                      </div>
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
+                        booking.paymentStatus === "paid"
+                          ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
+                          : "border-orange-400/20 bg-orange-400/10 text-orange-400"
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${
+                          booking.paymentStatus === "paid" ? "bg-emerald-400" : "bg-orange-400"
+                        }`} />
+                        {booking.paymentStatus === "paid" ? "Paid" : "Payment Pending"}
+                      </span>
                     </div>
                   </div>
 
@@ -327,7 +371,7 @@ export default function BookingsPage() {
                         id={`cancel-booking-${booking._id}`}
                         onClick={() => handleCancel(booking._id)}
                         disabled={cancelling === booking._id}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-400/15 bg-red-400/[0.05] px-4 text-sm font-semibold text-red-400 transition-all duration-200 hover:border-red-400/25 hover:bg-red-400/10 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-400/15 bg-red-400/[0.05] px-4 text-sm font-semibold text-red-400 transition-all duration-200 hover:border-red-400/25 hover:bg-red-400/10 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                       >
                         {cancelling === booking._id ? (
                           <>

@@ -379,15 +379,6 @@ export const getAvailableSlots = async (
       return;
     }
 
-    if (service.bookingMode !== 'time_slot' || !service.timeSlots?.length) {
-      res.status(200).json({
-        success: true,
-        data: [],
-        message: 'This service does not use time slots',
-      });
-      return;
-    }
-
     // Build date window for the requested day
     const dayStart = new Date(date);
     dayStart.setHours(0, 0, 0, 0);
@@ -396,38 +387,53 @@ export const getAvailableSlots = async (
     // Import Booking dynamically to avoid circular dep
     const Booking = (await import('../models/Booking')).default;
 
-    // Count existing confirmed bookings per slot for this date
+    // Fetch all bookings for this date
     const existingBookings = await Booking.find({
       service: req.params.id,
       startDate: { $gte: dayStart, $lt: dayEnd },
       status: { $nin: ['cancelled'] },
-      timeSlotId: { $exists: true },
-    }).select('timeSlotId');
+    }).select('timeSlotId guestCount');
 
+    let dailyBookingsCount = 0;
+    let dailyGuestsCount = 0;
     const slotBookingCounts: Record<string, number> = {};
+
     for (const b of existingBookings) {
+      dailyBookingsCount++;
+      if (b.guestCount) {
+        dailyGuestsCount += b.guestCount;
+      }
       if (b.timeSlotId) {
         slotBookingCounts[b.timeSlotId] = (slotBookingCounts[b.timeSlotId] || 0) + 1;
       }
     }
 
-    // Build response with availability flag for each slot
-    const slots = service.timeSlots
-      .filter((s) => s.isActive)
-      .map((s) => {
-        const booked = slotBookingCounts[s._id.toString()] || 0;
-        return {
-          _id: s._id,
-          label: s.label,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          maxBookings: s.maxBookings,
-          bookedCount: booked,
-          isAvailable: booked < s.maxBookings,
-        };
-      });
+    let slots: any[] = [];
+    if (service.bookingMode === 'time_slot' && service.timeSlots?.length) {
+      slots = service.timeSlots
+        .filter((s) => s.isActive)
+        .map((s) => {
+          const booked = slotBookingCounts[s._id.toString()] || 0;
+          return {
+            _id: s._id,
+            label: s.label,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            maxBookings: s.maxBookings,
+            bookedCount: booked,
+            isAvailable: booked < s.maxBookings,
+          };
+        });
+    }
 
-    res.status(200).json({ success: true, data: slots });
+    res.status(200).json({ 
+      success: true, 
+      data: slots,
+      dailyStats: {
+        bookings: dailyBookingsCount,
+        guests: dailyGuestsCount
+      }
+    });
   } catch (error) {
     next(error);
   }
