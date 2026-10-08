@@ -11,13 +11,6 @@ import { useAuth } from "@/context/AuthContext";
 
 type TabType = "all" | "upcoming" | "past";
 
-const STATUS_COLORS: Record<string, string> = {
-  confirmed: "badge-confirmed",
-  pending: "badge-pending",
-  cancelled: "badge-cancelled",
-  completed: "badge-completed",
-};
-
 export default function BookingsPage() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
@@ -43,9 +36,12 @@ export default function BookingsPage() {
     }
   };
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     if (isAuthenticated) fetchBookings(activeTab);
   }, [activeTab, isAuthenticated]);
+  /* eslint-enable react-hooks/exhaustive-deps */
+
 
   const handleCancel = async (bookingId: string) => {
     if (!confirm("Are you sure you want to cancel this booking?")) return;
