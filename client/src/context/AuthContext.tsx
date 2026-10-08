@@ -21,6 +21,8 @@ interface AuthContextType {
     password: string,
     phone?: string,
   ) => Promise<void>;
+  verifyOtp: (email: string, otp: string) => Promise<void>;
+  resendOtp: (email: string) => Promise<void>;
   logout: () => void;
   isAdmin: boolean;
   isAuthenticated: boolean;
@@ -34,6 +36,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Restore auth state from localStorage on mount
+
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     try {
       const storedToken = localStorage.getItem("token");
@@ -49,6 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
     }
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const login = async (email: string, password: string) => {
     const { data } = await api.post("/auth/login", { email, password });
@@ -64,16 +69,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     password: string,
     phone?: string,
   ) => {
-    const { data } = await api.post("/auth/register", {
+    await api.post("/auth/register", {
       name,
       email,
       password,
       phone,
     });
+  };
+
+  const verifyOtp = async (email: string, otp: string) => {
+    const { data } = await api.post("/auth/verify-otp", { email, otp });
     setToken(data.token);
     setUser(data.user);
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
+  };
+
+  const resendOtp = async (email: string) => {
+    await api.post("/auth/resend-otp", { email });
   };
 
   const logout = () => {
@@ -81,7 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    window.location.href = "/login";
+    window.location.replace("/login");
   };
 
   return (
@@ -92,6 +105,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isLoading,
         login,
         register,
+        verifyOtp,
+        resendOtp,
         logout,
         isAdmin: user?.role === "admin",
         isAuthenticated: !!user,
