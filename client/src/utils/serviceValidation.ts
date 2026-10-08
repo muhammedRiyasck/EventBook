@@ -15,6 +15,8 @@ export interface ServiceFormState {
   website: string;
   tags: string[];
   amenities: string[];
+  availableFrom: string;
+  availableTo: string;
 }
 
 export const validateServiceField = (
@@ -74,6 +76,20 @@ export const validateServiceField = (
     case "website":
       if (value && !/^https?:\/\/.*/.test(value))
         return "Please enter a valid URL (starting with http:// or https://)";
+      break;
+    case "availableFrom":
+      if (value && formState.availableTo) {
+        if (new Date(value as string) > new Date(formState.availableTo)) {
+          return "Start date cannot be after end date";
+        }
+      }
+      break;
+    case "availableTo":
+      if (value && formState.availableFrom) {
+        if (new Date(value as string) < new Date(formState.availableFrom)) {
+          return "End date cannot be before start date";
+        }
+      }
       break;
   }
   return "";

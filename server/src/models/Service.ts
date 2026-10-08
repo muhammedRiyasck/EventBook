@@ -38,6 +38,8 @@ export interface IService extends Document {
   pricingUnit?: 'per_day' | 'per_hour' | 'per_person' | 'per_project';
   cancellationPolicy?: 'Flexible' | 'Moderate' | 'Strict';
   amenities?: string[];
+  availableFrom?: Date;
+  availableTo?: Date;
   rating: number;
   totalReviews: number;
   isActive: boolean;
@@ -103,6 +105,8 @@ const ServiceSchema = new Schema<IService>(
       enum: ['Flexible', 'Moderate', 'Strict'],
     },
     amenities: [{ type: String, trim: true }],
+    availableFrom: { type: Date },
+    availableTo: { type: Date },
     rating: { type: Number, default: 0, min: 0, max: 5 },
     totalReviews: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },

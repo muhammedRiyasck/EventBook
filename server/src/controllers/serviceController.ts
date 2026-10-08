@@ -201,6 +201,8 @@ export const createService = async (
       pricingUnit,
       cancellationPolicy,
       amenities,
+      availableFrom,
+      availableTo,
     } = req.body;
 
     const service = await Service.create({
@@ -217,6 +219,8 @@ export const createService = async (
       pricingUnit,
       cancellationPolicy,
       amenities: typeof amenities === 'string' ? JSON.parse(amenities) : amenities || [],
+      availableFrom: availableFrom ? new Date(availableFrom) : undefined,
+      availableTo: availableTo ? new Date(availableTo) : undefined,
       images: imageUrls,
       createdBy: req.user!._id,
     });
@@ -270,6 +274,8 @@ export const updateService = async (
       pricingUnit,
       cancellationPolicy,
       amenities,
+      availableFrom,
+      availableTo,
     } = req.body;
 
     const existingImagesToKeep: string[] =
@@ -289,6 +295,8 @@ export const updateService = async (
     if (pricingUnit) updatedFields.pricingUnit = pricingUnit;
     if (cancellationPolicy) updatedFields.cancellationPolicy = cancellationPolicy;
     if (amenities) updatedFields.amenities = typeof amenities === 'string' ? JSON.parse(amenities) : amenities;
+    if (availableFrom) updatedFields.availableFrom = new Date(availableFrom);
+    if (availableTo) updatedFields.availableTo = new Date(availableTo);
     updatedFields.images = [...existingImagesToKeep, ...newImageUrls];
 
     const updatedService = await Service.findByIdAndUpdate(

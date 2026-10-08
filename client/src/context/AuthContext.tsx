@@ -37,7 +37,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Restore auth state from localStorage on mount
 
-  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     try {
       const storedToken = localStorage.getItem("token");
@@ -53,7 +52,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
     }
   }, []);
-  /* eslint-enable react-hooks/exhaustive-deps */
 
   const login = async (email: string, password: string) => {
     const { data } = await api.post("/auth/login", { email, password });

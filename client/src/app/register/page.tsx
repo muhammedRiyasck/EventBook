@@ -44,7 +44,6 @@ export default function RegisterPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendLoading, setResendLoading] = useState(false);
 
-  
   // If the user refreshes while on the OTP step we restore their email so they
   // don't lose the flow and have to start over.
   useEffect(() => {
@@ -213,7 +212,7 @@ export default function RegisterPage() {
   );
 
   // STEP 2 — OTP Entry
-  
+
   if (step === "otp") {
     return (
       <div className="min-h-screen pt-20 bg-[#050d1e] px-4 py-10 text-white">
@@ -505,7 +504,9 @@ export default function RegisterPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-lg p-2 text-slate-500 transition hover:bg-white/5 hover:text-white"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
                   >
                     {showPassword ? (
                       <EyeOff size={17} className="cursor-pointer" />

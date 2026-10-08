@@ -36,12 +36,9 @@ export default function BookingsPage() {
     }
   };
 
-  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     if (isAuthenticated) fetchBookings(activeTab);
   }, [activeTab, isAuthenticated]);
-  /* eslint-enable react-hooks/exhaustive-deps */
-
 
   const handleCancel = async (bookingId: string) => {
     if (!confirm("Are you sure you want to cancel this booking?")) return;

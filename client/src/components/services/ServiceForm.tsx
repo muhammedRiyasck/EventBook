@@ -38,6 +38,8 @@ interface Props {
     pricingUnit?: string;
     cancellationPolicy?: string;
     amenities?: string[];
+    availableFrom?: string;
+    availableTo?: string;
   };
 }
 
@@ -68,6 +70,8 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
     pricingUnit: initialData?.pricingUnit || "per_day",
     cancellationPolicy: initialData?.cancellationPolicy || "",
     amenities: initialData?.amenities || ([] as string[]),
+    availableFrom: initialData?.availableFrom || "",
+    availableTo: initialData?.availableTo || "",
   });
 
   const handleChange = (
@@ -132,7 +136,9 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const validationErrors = validateServiceForm(form as unknown as ServiceFormState);
+    const validationErrors = validateServiceForm(
+      form as unknown as ServiceFormState,
+    );
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       toast.error("Please fix the errors in the form");
@@ -172,6 +178,9 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
         formData.append("cancellationPolicy", form.cancellationPolicy);
       if (form.amenities.length > 0)
         formData.append("amenities", JSON.stringify(form.amenities));
+      if (form.availableFrom)
+        formData.append("availableFrom", form.availableFrom);
+      if (form.availableTo) formData.append("availableTo", form.availableTo);
 
       if (mode === "edit")
         formData.append("keepImages", JSON.stringify(keepImages));
@@ -398,6 +407,52 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
               </option>
               <option value="Strict">Strict (No refund)</option>
             </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <div>
+            <label
+              htmlFor="availableFrom"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Available From <span className="text-slate-600">(optional)</span>
+            </label>
+
+            <input
+              id="availableFrom"
+              name="availableFrom"
+              type="date"
+              className={`h-11 w-full rounded-xl border ${errors.availableFrom ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+              value={form.availableFrom}
+              onChange={handleChange}
+            />
+            {errors.availableFrom && (
+              <p className="mt-1 text-xs text-red-400">
+                {errors.availableFrom}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label
+              htmlFor="availableTo"
+              className="mb-2 block text-sm font-medium text-slate-300"
+            >
+              Available To <span className="text-slate-600">(optional)</span>
+            </label>
+
+            <input
+              id="availableTo"
+              name="availableTo"
+              type="date"
+              className={`h-11 w-full rounded-xl border ${errors.availableTo ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-white/[0.04] px-4 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:bg-white/[0.06] focus:ring-2`}
+              value={form.availableTo}
+              onChange={handleChange}
+            />
+            {errors.availableTo && (
+              <p className="mt-1 text-xs text-red-400">{errors.availableTo}</p>
+            )}
           </div>
         </div>
       </div>
