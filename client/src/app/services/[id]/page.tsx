@@ -414,7 +414,12 @@ export default function ServiceDetailPage() {
                           setEndDate(null);
                         }
                       }}
-                      minDate={new Date()}
+                      minDate={
+                        service.availableFrom
+                          ? new Date(Math.max(new Date().getTime(), new Date(service.availableFrom).getTime()))
+                          : new Date()
+                      }
+                      maxDate={service.availableTo ? new Date(service.availableTo) : undefined}
                       placeholderText="Select start date"
                       className="w-full rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/50 focus:bg-white/[0.06] focus:ring-4 focus:ring-yellow-400/10"
                       dateFormat="dd MMM yyyy"
@@ -433,8 +438,11 @@ export default function ServiceDetailPage() {
                       minDate={
                         startDate
                           ? new Date(startDate.getTime() + 86400000)
-                          : new Date()
+                          : service.availableFrom
+                            ? new Date(Math.max(new Date().getTime(), new Date(service.availableFrom).getTime()))
+                            : new Date()
                       }
+                      maxDate={service.availableTo ? new Date(service.availableTo) : undefined}
                       placeholderText="Select end date"
                       className="w-full rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-yellow-400/50 focus:bg-white/[0.06] focus:ring-4 focus:ring-yellow-400/10"
                       dateFormat="dd MMM yyyy"

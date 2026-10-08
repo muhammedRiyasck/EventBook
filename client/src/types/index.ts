@@ -42,6 +42,13 @@ export interface Service {
     website?: string;
   };
   tags: string[];
+  customCategory?: string;
+  capacity?: number;
+  pricingUnit?: 'per_day' | 'per_hour' | 'per_person' | 'per_project';
+  cancellationPolicy?: 'Flexible' | 'Moderate' | 'Strict';
+  amenities?: string[];
+  availableFrom?: string;
+  availableTo?: string;
   rating: number;
   totalReviews: number;
   isActive: boolean;

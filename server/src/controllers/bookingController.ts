@@ -46,6 +46,22 @@ export const createBooking = async (
       return;
     }
 
+    if (service.availableFrom && start < new Date(service.availableFrom)) {
+      res.status(400).json({
+        success: false,
+        message: `This service is only available starting from ${new Date(service.availableFrom).toLocaleDateString()}`,
+      });
+      return;
+    }
+
+    if (service.availableTo && end > new Date(service.availableTo)) {
+      res.status(400).json({
+        success: false,
+        message: `This service is only available until ${new Date(service.availableTo).toLocaleDateString()}`,
+      });
+      return;
+    }
+
     if (guestCount && service.capacity && guestCount > service.capacity) {
       res.status(400).json({ 
         success: false, 
