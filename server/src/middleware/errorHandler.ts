@@ -17,7 +17,18 @@ const errorHandler = (
   _next: NextFunction
 ): void => {
   let statusCode = err.statusCode || 500;
-  let message = err.message || 'Internal Server Error';
+  // Multer upload errors
+  if (err.name === 'MulterError') {
+    statusCode = 400;
+    const multerCode = (err as unknown as { code?: string }).code;
+    if (multerCode === 'LIMIT_FILE_SIZE') {
+      message = 'Image too large. Maximum file size allowed is 5MB per image.';
+    } else if (multerCode === 'LIMIT_FILE_COUNT') {
+      message = 'Too many images. Maximum allowed is 5 images.';
+    } else if (multerCode === 'LIMIT_UNEXPECTED_FILE') {
+      message = 'Unexpected image upload or limit exceeded.';
+    }
+  }
 
   // Mongoose duplicate key error
   if (err.code === 11000 && err.keyValue) {

@@ -10,16 +10,39 @@ import { AuthRequest } from '../middleware/auth';
  */
 const uploadToCloudinary = (
   buffer: Buffer,
-  folder: string
+  folder: string,
+  timeoutMs = 25000
 ): Promise<string> => {
   return new Promise((resolve, reject) => {
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error('Image upload to Cloudinary timed out (25s)'));
+      }
+    }, timeoutMs);
+
     const stream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: 'image', quality: 'auto', fetch_format: 'auto' },
+      { folder, resource_type: 'image' },
       (error, result) => {
-        if (error || !result) return reject(error);
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (error || !result) {
+          return reject(error || new Error('Image upload to Cloudinary failed'));
+        }
         resolve(result.secure_url);
       }
     );
+
+    stream.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+    });
+
     streamifier.createReadStream(buffer).pipe(stream);
   });
 };
@@ -298,8 +321,17 @@ export const updateService = async (
     } = req.body;
 
 
-    const existingImagesToKeep: string[] =
-      typeof keepImages === 'string' ? JSON.parse(keepImages) : keepImages || service.images;
+    let existingImagesToKeep: string[] = [];
+    if (keepImages !== undefined) {
+      try {
+        existingImagesToKeep = typeof keepImages === 'string' ? JSON.parse(keepImages) : keepImages;
+        if (!Array.isArray(existingImagesToKeep)) existingImagesToKeep = [];
+      } catch {
+        existingImagesToKeep = [];
+      }
+    } else {
+      existingImagesToKeep = service.images || [];
+    }
 
     const updatedFields: Partial<typeof service> = {};
     if (title) updatedFields.title = title;

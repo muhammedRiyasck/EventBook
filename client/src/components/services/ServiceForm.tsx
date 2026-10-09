@@ -51,12 +51,63 @@ interface Props {
 export default function ServiceForm({ mode, serviceId, initialData }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [images, setImages] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>(initialData?.images || []);
-  const [keepImages] = useState<string[]>(initialData?.images || []);
+  const [compressing, setCompressing] = useState(false);
+  const [existingImages, setExistingImages] = useState<string[]>(initialData?.images || []);
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [newFilePreviews, setNewFilePreviews] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [amenityInput, setAmenityInput] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const compressImage = async (file: File): Promise<File> => {
+    if (!file.type.startsWith("image/") || file.type.includes("svg") || file.size < 500 * 1024) {
+      return file;
+    }
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const maxDim = 1920;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (!blob || blob.size >= file.size) {
+              resolve(file);
+            } else {
+              const newName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+              resolve(new File([blob], newName, { type: "image/webp", lastModified: Date.now() }));
+            }
+          },
+          "image/webp",
+          0.85
+        );
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        resolve(file);
+      };
+      img.src = url;
+    });
+  };
   // Time slot state
   const [timeSlots, setTimeSlots] = useState<Omit<TimeSlot, '_id'>[]>(
     (initialData?.timeSlots || []).map(({ label, startTime, endTime, maxBookings, isActive }) => ({
@@ -124,26 +175,59 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
     });
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (images.length + files.length > 5) {
-      toast.error("Max 5 images allowed");
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFiles = Array.from(e.target.files || []);
+    if (rawFiles.length === 0) return;
+
+    const currentTotal = existingImages.length + newFiles.length;
+    if (currentTotal + rawFiles.length > 5) {
+      toast.error(`Max 5 images allowed in total (currently ${currentTotal})`);
       return;
     }
-    setImages((prev) => [...prev, ...files]);
-    files.forEach((f) => {
-      const reader = new FileReader();
-      reader.onload = (ev) =>
-        setPreviews((prev) => [...prev, ev.target?.result as string]);
-      reader.readAsDataURL(f);
-    });
+
+    const oversized = rawFiles.find((f) => f.size > 15 * 1024 * 1024);
+    if (oversized) {
+      toast.error(`"${oversized.name}" exceeds 15MB limit.`);
+      return;
+    }
+
+    setCompressing(true);
+    try {
+      const processed: File[] = [];
+      const previews: string[] = [];
+      for (const file of rawFiles) {
+        const compressed = await compressImage(file);
+        processed.push(compressed);
+        previews.push(URL.createObjectURL(compressed));
+      }
+      setNewFiles((prev) => [...prev, ...processed]);
+      setNewFilePreviews((prev) => [...prev, ...previews]);
+    } catch {
+      toast.error("Failed to process some images");
+    } finally {
+      setCompressing(false);
+      e.target.value = "";
+    }
   };
 
   const removeImage = (index: number) => {
-    if (index < keepImages.length) return; // don't remove existing cloud images here
-    const newIdx = index - keepImages.length;
-    setImages((prev) => prev.filter((_, i) => i !== newIdx));
-    setPreviews((prev) => prev.filter((_, i) => i !== index));
+    if (index < existingImages.length) {
+      setExistingImages((prev) => prev.filter((_, i) => i !== index));
+      toast.success("Existing image removed (save changes to confirm)");
+    } else {
+      const newIdx = index - existingImages.length;
+      if (newFilePreviews[newIdx]) {
+        URL.revokeObjectURL(newFilePreviews[newIdx]);
+      }
+      setNewFiles((prev) => prev.filter((_, i) => i !== newIdx));
+      setNewFilePreviews((prev) => prev.filter((_, i) => i !== newIdx));
+      toast.success("New image removed");
+    }
+  };
+
+  const removeAllExisting = () => {
+    setExistingImages([]);
+    toast.success("All existing images removed (save changes to confirm)");
   };
 
   const addTag = () => {
@@ -237,25 +321,34 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
       if (form.maxBookingsPerDay && !showSlotBuilder)
         formData.append("maxBookingsPerDay", form.maxBookingsPerDay);
 
-      if (mode === "edit")
-        formData.append("keepImages", JSON.stringify(keepImages));
-      images.forEach((img) => formData.append("images", img));
+      if (mode === "edit") {
+        formData.append("keepImages", JSON.stringify(existingImages));
+      }
+      newFiles.forEach((img) => formData.append("images", img));
 
       if (mode === "create") {
-        await api.post("/services", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        await api.post("/services", formData);
         toast.success("Service created successfully!");
       } else {
-        await api.put(`/services/${serviceId}`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+        await api.put(`/services/${serviceId}`, formData);
         toast.success("Service updated!");
       }
       router.push("/admin/services");
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      toast.error(error?.response?.data?.message || "Failed to save service");
+      const error = err as {
+        response?: {
+          data?: {
+            message?: string;
+            errors?: Array<{ msg?: string; message?: string }>;
+          };
+        };
+      };
+      const apiMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.errors?.[0]?.msg ||
+        error?.response?.data?.errors?.[0]?.message ||
+        "Failed to save service";
+      toast.error(apiMessage);
     } finally {
       setLoading(false);
     }
@@ -312,7 +405,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
             <select
               id="category"
               name="category"
-              className={`h-11 w-full rounded-xl border ${errors.category ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-[#0a1628] px-4 text-sm text-white outline-none transition-all focus:ring-2`}
+              className={`h-11 w-full rounded-xl border cursor-pointer ${errors.category ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/10" : "border-white/[0.08] focus:border-yellow-400/40 focus:ring-yellow-400/10"} bg-[#0a1628] px-4 text-sm text-white outline-none transition-all focus:ring-2`}
               value={form.category}
               onChange={handleChange}
             >
@@ -411,7 +504,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
               </div>
               <select
                 name="pricingUnit"
-                className="h-11 w-32 rounded-xl border border-white/[0.08] bg-[#0a1628] px-3 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
+                className="h-11 w-32 cursor-pointer rounded-xl border border-white/[0.08] bg-[#0a1628] px-3 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
                 value={form.pricingUnit}
                 onChange={handleChange}
               >
@@ -461,7 +554,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
             <select
               id="cancellationPolicy"
               name="cancellationPolicy"
-              className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0a1628] px-4 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
+              className="h-11 w-full cursor-pointer rounded-xl border border-white/[0.08] bg-[#0a1628] px-4 text-sm text-white outline-none transition-all focus:border-yellow-400/40 focus:ring-2 focus:ring-yellow-400/10"
               value={form.cancellationPolicy}
               onChange={handleChange}
             >
@@ -725,7 +818,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
                 <button
                   type="button"
                   onClick={() => removeTag(tag)}
-                  className="flex items-center text-yellow-400/50 transition-colors duration-150 hover:text-red-400"
+                  className="flex items-center cursor-pointer text-yellow-400/50 transition-colors duration-150 hover:text-red-400"
                 >
                   <X size={11} />
                 </button>
@@ -783,7 +876,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
                 <button
                   type="button"
                   onClick={() => removeAmenity(amenity)}
-                  className="flex items-center text-blue-400/50 transition-colors duration-150 hover:text-red-400"
+                  className="flex items-center cursor-pointer text-blue-400/50 transition-colors duration-150 hover:text-red-400"
                 >
                   <X size={11} />
                 </button>
@@ -816,7 +909,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
                 setForm((p) => ({ ...p, bookingMode: mode.value }));
                 setShowSlotBuilder(mode.value === 'time_slot');
               }}
-              className={`flex flex-col gap-1 rounded-xl border p-4 text-left transition-all duration-200 ${
+              className={`flex flex-col gap-1 cursor-pointer rounded-xl border p-4 text-left transition-all duration-200 ${
                 (showSlotBuilder ? 'time_slot' : form.bookingMode) === mode.value
                   ? 'border-yellow-400/50 bg-yellow-400/[0.07] text-white'
                   : 'border-white/[0.08] bg-white/[0.025] text-slate-400 hover:border-white/[0.15] hover:text-slate-200'
@@ -868,7 +961,7 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
                     <button
                       type="button"
                       onClick={() => removeSlot(i)}
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                      className="flex h-7 w-7 cursor-pointer shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
                     >
                       <X size={13} />
                     </button>
@@ -939,58 +1032,98 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
 
       {/* Images */}
       <div className="flex flex-col gap-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl sm:p-6">
-        <div className="border-b border-white/[0.08] pb-4">
-          <h3 className="text-[15px] font-bold text-white">
-            Images <span className="text-slate-500">(max 5)</span>
-          </h3>
-
-          <p className="mt-1 text-xs text-slate-500">
-            Upload JPEG, PNG, or WebP images up to 5MB each.
-          </p>
-        </div>
-
-        <label
-          htmlFor="image-upload"
-          className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-10 text-center text-sm text-slate-500 transition-all duration-200 hover:border-yellow-400/30 hover:bg-yellow-400/[0.025] hover:text-yellow-400"
-        >
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04]">
-            <Upload size={22} />
-          </div>
-
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.08] pb-4">
           <div>
-            <p className="font-medium text-slate-300">Click to upload images</p>
-            <p className="mt-1 text-xs text-slate-600">
-              JPEG, PNG, WebP · Max 5MB each
+            <div className="flex items-center gap-2">
+              <h3 className="text-[15px] font-bold text-white">
+                Images
+              </h3>
+              <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                existingImages.length + newFiles.length >= 5
+                  ? "bg-red-500/20 text-red-400"
+                  : "bg-white/[0.06] text-slate-300"
+              }`}>
+                {existingImages.length + newFiles.length} / 5
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              Upload JPEG, PNG, or WebP images. You can remove existing photos and add new ones.
             </p>
           </div>
 
-          <input
-            id="image-upload"
-            type="file"
-            multiple
-            accept="image/jpeg,image/png,image/webp"
-            className="hidden"
-            onChange={handleImageChange}
-          />
-        </label>
+          {existingImages.length > 0 && (
+            <button
+              type="button"
+              onClick={removeAllExisting}
+              className="cursor-pointer text-xs font-medium text-red-400/90 transition-colors hover:text-red-300"
+            >
+              Clear all existing ({existingImages.length})
+            </button>
+          )}
+        </div>
 
-        {previews.length > 0 && (
+        {existingImages.length + newFiles.length < 5 ? (
+          <label
+            htmlFor="image-upload"
+            className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/[0.08] bg-white/[0.02] px-6 py-10 text-center text-sm text-slate-500 transition-all duration-200 hover:border-yellow-400/30 hover:bg-yellow-400/[0.025] hover:text-yellow-400"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04]">
+              <Upload size={22} />
+            </div>
+
+            <div>
+              <p className="font-medium text-slate-300">Click to upload new images</p>
+              <p className="mt-1 text-xs text-slate-600">
+                JPEG, PNG, WebP · Max 5MB each (auto-optimized)
+              </p>
+            </div>
+
+            <input
+              id="image-upload"
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleImageChange}
+            />
+          </label>
+        ) : (
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-center text-xs text-slate-400">
+            Maximum limit of 5 images reached. Remove an image below to upload a new one.
+          </div>
+        )}
+
+        {existingImages.length + newFilePreviews.length > 0 && (
           <div className="flex flex-wrap gap-3">
-            {previews.map((src, i) => (
+            {[
+              ...existingImages.map((src) => ({ src, isExisting: true })),
+              ...newFilePreviews.map((src) => ({ src, isExisting: false })),
+            ].map((item, i) => (
               <div
                 key={i}
                 className="group relative h-24 w-28 overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.03]"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={src}
+                  src={item.src}
                   alt={`Preview ${i + 1}`}
                   className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
 
+                {item.isExisting ? (
+                  <span className="absolute bottom-1.5 left-1.5 rounded bg-black/60 px-1.5 py-0.5 text-[9px] font-medium text-slate-300 backdrop-blur-sm">
+                    Current
+                  </span>
+                ) : (
+                  <span className="absolute bottom-1.5 left-1.5 rounded bg-yellow-400 px-1.5 py-0.5 text-[9px] font-bold text-slate-900 backdrop-blur-sm">
+                    New
+                  </span>
+                )}
+
                 <button
                   type="button"
-                  className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white backdrop-blur-sm transition-colors duration-150 hover:bg-red-500"
+                  title="Remove image"
+                  className="absolute right-1.5 top-1.5 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full bg-black/70 text-white backdrop-blur-sm transition-colors duration-150 hover:bg-red-500"
                   onClick={() => removeImage(i)}
                 >
                   <X size={12} />
@@ -1014,14 +1147,24 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
         <button
           id="service-submit-btn"
           type="submit"
-          className="inline-flex h-11 items-center justify-center rounded-xl bg-yellow-400 px-6 cursor-pointer text-sm font-bold text-[#050d1e] shadow-[0_8px_25px_rgba(250,204,21,0.1)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-yellow-300 hover:shadow-[0_12px_30px_rgba(250,204,21,0.18)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
-          disabled={loading}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-6 cursor-pointer text-sm font-bold text-[#050d1e] shadow-[0_8px_25px_rgba(250,204,21,0.1)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-yellow-300 hover:shadow-[0_12px_30px_rgba(250,204,21,0.18)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+          disabled={loading || compressing}
         >
-          {loading
-            ? "Saving…"
-            : mode === "create"
-              ? "Create Service"
-              : "Save Changes"}
+          {loading ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-900 border-t-transparent" />
+              {newFiles.length > 0 ? "Uploading images…" : "Saving…"}
+            </>
+          ) : compressing ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-900 border-t-transparent" />
+              Optimizing images…
+            </>
+          ) : mode === "create" ? (
+            "Create Service"
+          ) : (
+            "Save Changes"
+          )}
         </button>
       </div>
     </form>
