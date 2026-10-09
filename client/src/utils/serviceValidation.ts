@@ -90,9 +90,6 @@ export const validateServiceField = (
         }
         if (formState.availableTo) {
           const toDate = new Date(formState.availableTo);
-          if (fromDate.getTime() === toDate.getTime()) {
-            return "Start and end dates cannot be the same";
-          }
           if (fromDate > toDate) {
             return "Start date cannot be after end date";
           }
@@ -111,9 +108,6 @@ export const validateServiceField = (
         }
         if (formState.availableFrom) {
           const fromDate = new Date(formState.availableFrom);
-          if (toDate.getTime() === fromDate.getTime()) {
-            return "Start and end dates cannot be the same";
-          }
           if (toDate < fromDate) {
             return "End date cannot be before start date";
           }

@@ -40,8 +40,8 @@ const serviceValidationRules = [
       if (req.body.availableTo && !value) {
         throw new Error('Start date is required if end date is provided');
       }
-      if (req.body.availableTo && new Date(value).getTime() === new Date(req.body.availableTo).getTime()) {
-        throw new Error('Start and end dates cannot be the same');
+      if (req.body.availableTo && new Date(value) > new Date(req.body.availableTo)) {
+        throw new Error('Start date cannot be after end date');
       }
       return true;
     }),
@@ -61,9 +61,6 @@ const serviceValidationRules = [
       if (req.body.availableFrom) {
         const fromDate = new Date(req.body.availableFrom);
         const toDate = new Date(value);
-        if (toDate.getTime() === fromDate.getTime()) {
-          throw new Error('Start and end dates cannot be the same');
-        }
         if (toDate < fromDate) {
           throw new Error('End date cannot be before start date');
         }

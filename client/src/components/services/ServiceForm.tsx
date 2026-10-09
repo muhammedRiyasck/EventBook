@@ -108,7 +108,13 @@ export default function ServiceForm({ mode, serviceId, initialData }: Props) {
       const newForm = { ...p, [name]: newValue };
       if (name !== 'isFree') {
         const error = validateServiceField(name, String(newValue), newForm);
-        setErrors((prev) => ({ ...prev, [name]: error }));
+        const extraErrors: Record<string, string> = {};
+        if (name === 'availableFrom' && newForm.availableTo) {
+          extraErrors.availableTo = validateServiceField('availableTo', newForm.availableTo, newForm);
+        } else if (name === 'availableTo' && newForm.availableFrom) {
+          extraErrors.availableFrom = validateServiceField('availableFrom', newForm.availableFrom, newForm);
+        }
+        setErrors((prev) => ({ ...prev, [name]: error, ...extraErrors }));
       } else {
         if (newValue) {
           setErrors((prev) => ({ ...prev, pricePerDay: '' }));
