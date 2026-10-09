@@ -3,6 +3,8 @@ import { validationResult } from 'express-validator';
 import Booking from '../models/Booking';
 import Service from '../models/Service';
 import { AuthRequest } from '../middleware/auth';
+import stripe from '../config/stripe';
+import env from '../config/env';
 
 import appEvents from '../utils/eventEmitter';
 import {
@@ -174,12 +176,24 @@ export const createBooking = async (
       return;
     }
 
-    // ── Duplicate Booking Check ───────────────────────────────────────────────
+    // ── Clean up stale pending bookings (abandoned payments) ─────────────────
+    // If the user has a pending (unpaid) booking for this service on the same dates,
+    // delete it so they can start a fresh payment attempt.
+    await Booking.deleteMany({
+      user: req.user!._id,
+      service: serviceId,
+      status: 'pending',
+      paymentStatus: 'unpaid',
+      startDate: { $lte: end },
+      endDate: { $gte: start },
+    });
 
+    // ── Duplicate Booking Check ───────────────────────────────────────────────
+    // Only block if there's already a confirmed/completed booking on these dates
     const duplicate = await Booking.findOne({
       user: req.user!._id,
       service: serviceId,
-      status: { $nin: ['cancelled'] },
+      status: { $in: ['confirmed', 'completed'] },
       startDate: { $lte: end },
       endDate: { $gte: start },
     });
@@ -259,7 +273,7 @@ export const createBooking = async (
         totalPrice,
         guestCount,
         notes,
-        status: 'confirmed', // Keep it confirmed for now since Stripe isn't active
+        status: service.isFree ? 'confirmed' : 'pending',
         paymentStatus: service.isFree ? 'paid' : 'unpaid',
         // time slot fields
         ...(resolvedSlot && {
@@ -285,23 +299,42 @@ export const createBooking = async (
       throw err;
     }
 
-    // ── Emit booking.created event (non-blocking) ─────────────────────────────
-
-    appEvents.emit('booking.created', {
-      userName: req.user!.name,
-      userEmail: req.user!.email,
-      serviceName: service.title,
-      startDate: start.toLocaleDateString('en-IN'),
-      endDate: end.toLocaleDateString('en-IN'),
-      totalDays,
-      totalPrice,
-      bookingId: (booking._id?.toString() as string).toString(),
-      // optional enrichments for email
-      ...(resolvedSlot && {
-        timeSlot: `${resolvedSlot.label} (${resolvedSlot.startTime} – ${resolvedSlot.endTime})`,
-      }),
-      ...(guestCount && { guestCount }),
-    });
+    // ── Stripe Payment Intent ───────────────────────────────────────────────
+    let clientSecret: string | null = null;
+    if (!service.isFree) {
+      try {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: Math.round(totalPrice * 100), // Stripe expects amounts in smallest unit (paise)
+          currency: 'inr',
+          metadata: {
+            bookingId: booking._id.toString(),
+          },
+        });
+        clientSecret = paymentIntent.client_secret;
+      } catch (err) {
+        console.error('Failed to create Stripe payment intent:', err);
+        await Booking.findByIdAndDelete(booking._id);
+        res.status(500).json({ success: false, message: 'Failed to initiate payment.' });
+        return;
+      }
+    } else {
+      // Emit booking.created event immediately since it's a free service and confirmed
+      appEvents.emit('booking.created', {
+        userName: req.user!.name,
+        userEmail: req.user!.email,
+        serviceName: service.title,
+        startDate: start.toLocaleDateString('en-IN'),
+        endDate: end.toLocaleDateString('en-IN'),
+        totalDays,
+        totalPrice,
+        bookingId: (booking._id?.toString() as string).toString(),
+        // optional enrichments for email
+        ...(resolvedSlot && {
+          timeSlot: `${resolvedSlot.label} (${resolvedSlot.startTime} – ${resolvedSlot.endTime})`,
+        }),
+        ...(guestCount && { guestCount }),
+      });
+    }
 
     const populatedBooking = await Booking.findById(booking._id).populate(
       'service',
@@ -311,7 +344,8 @@ export const createBooking = async (
     res.status(201).json({
       success: true,
       data: populatedBooking,
-      message: 'Booking confirmed! A confirmation email has been sent.',
+      clientSecret, // Used by frontend Elements
+      message: service.isFree ? 'Booking confirmed! A confirmation email has been sent.' : 'Proceeding to payment...',
     });
   } catch (error) {
     next(error);
@@ -332,7 +366,15 @@ export const getMyBookings = async (
     const { status, type } = req.query as { status?: string; type?: string };
     const query: Record<string, unknown> = { user: req.user!._id };
 
-    if (status) query.status = status;
+    if (status) {
+      query.status = status;
+    } else {
+      // By default, exclude stale pending bookings (unpaid abandoned payment attempts)
+      query.$or = [
+        { status: { $ne: 'pending' } },
+        { status: 'pending', paymentStatus: 'paid' },
+      ];
+    }
 
     // Filter upcoming vs past
     if (type === 'upcoming') {
@@ -532,6 +574,78 @@ export const updateBookingStatus = async (
       res.status(404).json({ success: false, message: 'Booking not found' });
       return;
     }
+
+    res.status(200).json({ success: true, data: booking });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Confirm booking after successful Stripe payment (in-app Elements flow)
+ * @route   POST /api/bookings/:id/confirm-payment
+ * @access  Private/User
+ */
+export const confirmPayment = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { paymentIntentId } = req.body;
+    if (!paymentIntentId) {
+      res.status(400).json({ success: false, message: 'Payment intent ID is required' });
+      return;
+    }
+
+    const booking = await Booking.findById(req.params.id).populate('user service');
+    if (!booking) {
+      res.status(404).json({ success: false, message: 'Booking not found' });
+      return;
+    }
+
+    // Only the booking owner can confirm
+    if (booking.user._id.toString() !== req.user!._id.toString()) {
+      res.status(403).json({ success: false, message: 'Access denied' });
+      return;
+    }
+
+    // Verify payment with Stripe
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (paymentIntent.metadata.bookingId !== req.params.id) {
+      res.status(400).json({ success: false, message: 'Payment does not match this booking' });
+      return;
+    }
+
+    if (paymentIntent.status !== 'succeeded') {
+      res.status(400).json({ success: false, message: 'Payment has not been completed' });
+      return;
+    }
+
+    // Already confirmed via webhook — idempotent
+    if (booking.paymentStatus === 'paid') {
+      res.status(200).json({ success: true, data: booking });
+      return;
+    }
+
+    booking.paymentStatus = 'paid';
+    booking.status = 'confirmed';
+    await booking.save();
+
+    const user = booking.user as unknown as { name: string; email: string };
+    const service = booking.service as unknown as { title: string };
+
+    appEvents.emit('booking.created', {
+      userName: user.name,
+      userEmail: user.email,
+      serviceName: service.title,
+      startDate: booking.startDate.toLocaleDateString('en-IN'),
+      endDate: booking.endDate.toLocaleDateString('en-IN'),
+      totalDays: booking.totalDays,
+      totalPrice: booking.totalPrice,
+      bookingId: booking._id.toString(),
+      ...(booking.guestCount && { guestCount: booking.guestCount }),
+    });
 
     res.status(200).json({ success: true, data: booking });
   } catch (error) {

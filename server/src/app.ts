@@ -10,6 +10,7 @@ import connectDB from './config/db';
 import authRoutes from './routes/auth';
 import serviceRoutes from './routes/services';
 import bookingRoutes from './routes/bookings';
+import webhookRoutes from './routes/webhooks';
 import errorHandler from './middleware/errorHandler';
 // Import eventEmitter to ensure all email listeners are registered at startup
 import './utils/eventEmitter';
@@ -48,6 +49,9 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// ─── Webhooks (Must be before JSON parser) ───────────────────────────────
+app.use('/api/webhooks', webhookRoutes);
 
 // ─── Body Parsers ──────────────────────────────────────────────────────────
 app.use(express.json({ limit: '10mb' }));

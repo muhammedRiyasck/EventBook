@@ -15,6 +15,8 @@ const env = {
   EMAIL_PASS: process.env.EMAIL_PASS || '',
   CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:3000',
   NODE_ENV: process.env.NODE_ENV || 'development',
+  STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
+  STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
 };
 
 export default env;

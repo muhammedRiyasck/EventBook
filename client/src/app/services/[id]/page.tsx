@@ -245,7 +245,7 @@ export default function ServiceDetailPage() {
       const effectiveEnd =
         bookingMode === "date_range" ? endDate : startDate;
 
-      await api.post("/bookings", {
+      const response = await api.post("/bookings", {
         serviceId: id,
         startDate: startDate.toISOString(),
         endDate: (effectiveEnd ?? startDate).toISOString(),
@@ -253,8 +253,15 @@ export default function ServiceDetailPage() {
         ...(selectedSlotId && { timeSlotId: selectedSlotId }),
         ...(guestCount && { guestCount: Number(guestCount) }),
       });
-      toast.success("🎉 Booking confirmed! Check your email.");
-      router.push("/bookings");
+      
+      if (response.data.clientSecret) {
+        // Redirect to in-app payment page with booking info in URL
+        const bookingId = response.data.data?._id;
+        router.push(`/checkout?clientSecret=${response.data.clientSecret}&bookingId=${bookingId}`);
+      } else {
+        toast.success("🎉 Booking confirmed! Check your email.");
+        router.push("/bookings");
+      }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       toast.error(error?.response?.data?.message || "Booking failed");
