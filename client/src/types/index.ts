@@ -72,6 +72,8 @@ export interface Service {
   updatedAt: string;
 }
 
+export type PaymentStatus = "unpaid" | "paid" | "refunded" | "partially_refunded";
+export type RefundStatus = "none" | "pending" | "succeeded" | "failed";
 export type BookingStatus = "pending" | "confirmed" | "cancelled" | "completed";
 
 export interface Booking {
@@ -83,8 +85,15 @@ export interface Booking {
   totalDays: number;
   totalPrice: number;
   status: BookingStatus;
-  paymentStatus: "unpaid" | "paid";
+  paymentStatus: PaymentStatus;
   notes?: string;
+  // Stripe & Refund fields
+  stripePaymentIntentId?: string;
+  refundId?: string;
+  refundAmount?: number;
+  refundReason?: string;
+  refundStatus?: RefundStatus;
+  refundedAt?: string;
   // Time slot fields
   timeSlotId?: string;
   startTime?: string;   // "HH:mm"
@@ -94,6 +103,50 @@ export interface Booking {
   guestCount?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface StripeTransactionDetails {
+  id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  created: number;
+  receiptUrl?: string | null;
+  paymentMethod: string;
+  last4?: string | null;
+  brand?: string | null;
+  chargeId?: string | null;
+}
+
+export interface RevenueSummaryData {
+  overview: {
+    totalRevenue: number;
+    totalTransactions: number;
+    refundedRevenue: number;
+    refundCount: number;
+    netRevenue: number;
+    periodRevenue: number;
+    periodTransactions: number;
+  };
+  dailyRevenue: Array<{
+    _id: string;
+    revenue: number;
+    refunds: number;
+    count: number;
+  }>;
+  topServices: Array<{
+    _id: string;
+    title: string;
+    category: string;
+    revenue: number;
+    bookings: number;
+  }>;
+  refundStats: {
+    totalRefunded: number;
+    count: number;
+    fullRefunds: number;
+    partialRefunds: number;
+  };
 }
 
 export interface Pagination {

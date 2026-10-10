@@ -8,6 +8,8 @@ import {
   Layers,
   CalendarDays,
   TrendingUp,
+  User,
+  DollarSign,
 } from "lucide-react";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -185,7 +187,7 @@ export default function AdminDashboardPage() {
             </p>
           </div>
 
-          <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid max-w-8xl grid-cols-1 gap-4 md:grid-cols-4">
             {/* Services */}
             <Link
               href="/admin/services"
@@ -224,6 +226,52 @@ export default function AdminDashboardPage() {
 
                 <p className="mt-1 text-[13px] text-slate-400">
                   View and manage all bookings
+                </p>
+              </div>
+
+              <span className="ml-auto shrink-0 text-slate-600 transition-all duration-200 group-hover:translate-x-1 group-hover:text-yellow-400">
+                →
+              </span>
+            </Link>
+
+            {/* Users */}
+            <Link
+              href="/admin/users"
+              id="admin-users-link"
+              className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-400/20 hover:bg-white/[0.055] hover:shadow-[0_10px_35px_rgba(0,0,0,0.2)]"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-blue-400/10 bg-blue-400/10 text-blue-400">
+                <User size={22} />
+              </div>
+
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-bold text-white">Users</h3>
+
+                <p className="mt-1 text-[13px] text-slate-400">
+                  View and manage all users
+                </p>
+              </div>
+
+              <span className="ml-auto shrink-0 text-slate-600 transition-all duration-200 group-hover:translate-x-1 group-hover:text-yellow-400">
+                →
+              </span>
+            </Link>
+
+            {/* Earnings */}
+            <Link
+              href="/admin/earnings"
+              id="admin-earnings-link"
+              className="group flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-5 backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-green-400/20 hover:bg-white/[0.055] hover:shadow-[0_10px_35px_rgba(0,0,0,0.2)]"
+            >
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-green-400/10 bg-green-400/10 text-green-400">
+                <DollarSign size={22} />
+              </div>
+
+              <div className="min-w-0">
+                <h3 className="text-[15px] font-bold text-white">Earnings</h3>
+
+                <p className="mt-1 text-[13px] text-slate-400">
+                  View and manage all earnings
                 </p>
               </div>
 

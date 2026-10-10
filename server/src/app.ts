@@ -10,6 +10,7 @@ import connectDB from './config/db';
 import authRoutes from './routes/auth';
 import serviceRoutes from './routes/services';
 import bookingRoutes from './routes/bookings';
+import paymentRoutes from './routes/payments';
 import webhookRoutes from './routes/webhooks';
 import errorHandler from './middleware/errorHandler';
 // Import eventEmitter to ensure all email listeners are registered at startup
@@ -70,6 +71,7 @@ app.use((req, res, next) => {
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/services', apiLimiter, serviceRoutes);
 app.use('/api/bookings', apiLimiter, bookingRoutes);
+app.use('/api/payments', apiLimiter, paymentRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req, res) => {

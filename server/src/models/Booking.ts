@@ -1,7 +1,8 @@
 import mongoose, { Document, Schema, Types } from 'mongoose';
 
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
-export type PaymentStatus = 'unpaid' | 'paid';
+export type PaymentStatus = 'unpaid' | 'paid' | 'refunded' | 'partially_refunded';
+export type RefundStatus = 'none' | 'pending' | 'succeeded' | 'failed';
 
 export interface IBooking extends Document {
   user: Types.ObjectId;
@@ -13,12 +14,16 @@ export interface IBooking extends Document {
   status: BookingStatus;
   paymentStatus: PaymentStatus;
   notes?: string;
-  // Time slot fields
-  timeSlotId?: string;   // references the chosen slot _id in service.timeSlots
-  startTime?: string;    // "HH:mm" — denormalized from slot for display/email
-  endTime?: string;      // "HH:mm"
-  totalHours?: number;   // computed from slot times (for per_hour pricing)
-  // Guest / seat fields
+  stripePaymentIntentId?: string;
+  refundId?: string;
+  refundAmount?: number;
+  refundReason?: string;
+  refundStatus?: RefundStatus;
+  refundedAt?: Date;
+  timeSlotId?: string;   
+  startTime?: string;    
+  endTime?: string;      
+  totalHours?: number;   
   guestCount?: number;
   createdAt: Date;
   updatedAt: Date;
@@ -65,9 +70,20 @@ const BookingSchema = new Schema<IBooking>(
     },
     paymentStatus: {
       type: String,
-      enum: ['unpaid', 'paid'],
+      enum: ['unpaid', 'paid', 'refunded', 'partially_refunded'],
       default: 'unpaid',
     },
+    stripePaymentIntentId: { type: String },
+    // Refund fields
+    refundId: { type: String },
+    refundAmount: { type: Number, min: 0 },
+    refundReason: { type: String, maxlength: 500 },
+    refundStatus: {
+      type: String,
+      enum: ['none', 'pending', 'succeeded', 'failed'],
+      default: 'none',
+    },
+    refundedAt: { type: Date },
     notes: {
       type: String,
       maxlength: [500, 'Notes cannot exceed 500 characters'],
