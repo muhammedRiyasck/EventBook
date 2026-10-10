@@ -17,7 +17,7 @@ const errorHandler = (
   _next: NextFunction
 ): void => {
   let statusCode = err.statusCode || 500;
-  // Multer upload errors
+  let message = err.message || 'Internal Server Error';
   if (err.name === 'MulterError') {
     statusCode = 400;
     const multerCode = (err as unknown as { code?: string }).code;
