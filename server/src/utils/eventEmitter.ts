@@ -1,10 +1,10 @@
 import { EventEmitter } from 'events';
-import { sendOtpEmail, sendBookingConfirmationEmail, sendBookingCancellationEmail } from './emailService';
+import { sendOtpEmail, sendBookingConfirmationEmail, sendBookingCancellationEmail, sendRefundEmail } from './emailService';
 
 class AppEventEmitter extends EventEmitter {}
 const appEvents = new AppEventEmitter();
 
-// Register listeners
+
 appEvents.on('user.registered', async ({ email, otp }) => {
   try {
     await sendOtpEmail(email, otp);
@@ -38,6 +38,19 @@ appEvents.on('booking.cancelled', async (bookingData) => {
   } catch (error: unknown) {
     const err = error as Error & { code?: string; response?: string };
     console.error(`❌ [Email] Failed to send booking cancellation to ${bookingData.userEmail}`);
+    console.error(`   Message  : ${err.message}`);
+    console.error(`   Code     : ${err.code ?? 'N/A'}`);
+    console.error(`   SMTP Res : ${err.response ?? 'N/A'}`);
+  }
+});
+
+appEvents.on('booking.refunded', async (data) => {
+  try {
+    await sendRefundEmail(data);
+    console.log(`✅ [Email] Refund notification sent to ${data.userEmail}`);
+  } catch (error: unknown) {
+    const err = error as Error & { code?: string; response?: string };
+    console.error(`❌ [Email] Failed to send refund notification to ${data.userEmail}`);
     console.error(`   Message  : ${err.message}`);
     console.error(`   Code     : ${err.code ?? 'N/A'}`);
     console.error(`   SMTP Res : ${err.response ?? 'N/A'}`);

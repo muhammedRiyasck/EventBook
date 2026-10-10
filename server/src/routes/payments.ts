@@ -5,7 +5,7 @@ import {
   getTransactionById,
   getRevenueSummary,
   issueRefund,
-  // getRefunds,
+  getRefunds,
 } from '../controllers/paymentController';
 import { protect, isAdmin } from '../middleware/auth';
 
@@ -15,7 +15,7 @@ router.use(protect, isAdmin);
 
 router.get('/summary', getRevenueSummary);
 
-// router.get('/refunds', getRefunds);
+router.get('/refunds', getRefunds);
 
 router.get('/transactions', getTransactions);
 

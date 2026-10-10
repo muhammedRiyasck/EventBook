@@ -3,6 +3,7 @@ import env from '../config/env';
 import { otpEmailTemplate } from './emailTemplates/otpEmail';
 import { bookingConfirmationTemplate, BookingEmailData } from './emailTemplates/bookingConfirmation';
 import { bookingCancellationTemplate } from './emailTemplates/bookingCancellation';
+import { refundEmailTemplate, RefundEmailData } from './emailTemplates/refundEmail';
 
 const transporter = nodemailer.createTransport({
   host: env.EMAIL_HOST,
@@ -53,5 +54,17 @@ export const sendBookingCancellationEmail = async (data: BookingEmailData): Prom
   });
 };
 
-// Re-export the shared type so consumers don't need to dig into templates
-export type { BookingEmailData };
+/**
+ * Sends a refund notification email to the user.
+ */
+export const sendRefundEmail = async (data: RefundEmailData): Promise<void> => {
+  await transporter.sendMail({
+    from: SENDER,
+    to: data.userEmail,
+    subject: `💰 Refund Processed — ${data.serviceName}`,
+    html: refundEmailTemplate(data),
+  });
+};
+
+// Re-export the shared types so consumers don't need to dig into templates
+export type { BookingEmailData, RefundEmailData };
