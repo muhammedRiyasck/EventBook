@@ -5,8 +5,8 @@ if (!env.STRIPE_SECRET_KEY) {
   console.warn('⚠️ STRIPE_SECRET_KEY is missing in env');
 }
 
-const stripe = new Stripe(env.STRIPE_SECRET_KEY || 'sk_test_mock', {
-  apiVersion: '2023-10-16',
+const stripe: Stripe = new Stripe(env.STRIPE_SECRET_KEY || 'sk_test_mock', {
+  apiVersion: '2026-09-30.endive',
 });
 
 export default stripe;
