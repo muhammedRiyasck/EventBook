@@ -263,7 +263,14 @@ export default function ServiceDetailPage() {
         router.push("/bookings");
       }
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
+      const error = err as {
+        response?: { status?: number; data?: { message?: string; pendingBookingId?: string } };
+      };
+      if (error.response?.status === 409 && error.response.data?.pendingBookingId) {
+        toast.error("You already have a pending booking. Continue its payment from My Bookings.");
+        router.push("/bookings");
+        return;
+      }
       toast.error(error?.response?.data?.message || "Booking failed");
     } finally {
       setBooking(false);

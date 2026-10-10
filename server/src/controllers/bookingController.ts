@@ -176,17 +176,27 @@ export const createBooking = async (
       return;
     }
 
-    // ── Clean up stale pending bookings (abandoned payments) ─────────────────
-    // If the user has a pending (unpaid) booking for this service on the same dates,
-    // delete it so they can start a fresh payment attempt.
-    await Booking.deleteMany({
+    // Preserve a customer's unfinished payment rather than creating another
+    // booking for the same service and selection. This check happens before
+    // availability counters so the customer receives the actionable retry path.
+    const existingPendingBooking = await Booking.findOne({
       user: req.user!._id,
       service: serviceId,
       status: 'pending',
       paymentStatus: 'unpaid',
       startDate: { $lte: end },
       endDate: { $gte: start },
-    });
+      ...(service.bookingMode === 'time_slot' && { timeSlotId }),
+    }).select('_id');
+
+    if (existingPendingBooking) {
+      res.status(409).json({
+        success: false,
+        message: 'You already have a pending booking for this selection. Retry its payment instead.',
+        pendingBookingId: existingPendingBooking._id.toString(),
+      });
+      return;
+    }
 
     // ── Duplicate Booking Check ───────────────────────────────────────────────
     // Only block if there's already a confirmed/completed booking on these dates
@@ -311,10 +321,12 @@ export const createBooking = async (
           },
         });
         clientSecret = paymentIntent.client_secret;
+        booking.pendingStripePaymentIntentId = paymentIntent.id;
+        await booking.save();
       } catch (err) {
         console.error('Failed to create Stripe payment intent:', err);
-        await Booking.findByIdAndDelete(booking._id);
-        res.status(500).json({ success: false, message: 'Failed to initiate payment.' });
+        // Preserve the pending booking so it can be retried rather than lost.
+        res.status(503).json({ success: false, message: 'Failed to initiate payment. You can retry from My Bookings.' });
         return;
       }
     } else {
@@ -351,7 +363,6 @@ export const createBooking = async (
     next(error);
   }
 };
-
 /**
  * @desc    Get current user's bookings (past + upcoming)
  * @route   GET /api/bookings/my
@@ -366,15 +377,7 @@ export const getMyBookings = async (
     const { status, type } = req.query as { status?: string; type?: string };
     const query: Record<string, unknown> = { user: req.user!._id };
 
-    if (status) {
-      query.status = status;
-    } else {
-      // By default, exclude stale pending bookings (unpaid abandoned payment attempts)
-      query.$or = [
-        { status: { $ne: 'pending' } },
-        { status: 'pending', paymentStatus: 'paid' },
-      ];
-    }
+    if (status) query.status = status;
 
     // Filter upcoming vs past
     if (type === 'upcoming') {
@@ -440,6 +443,90 @@ export const getAllBookings = async (
 };
 
 /**
+ * @desc    Create or resume payment for an existing pending booking
+ * @route   POST /api/bookings/:id/retry-payment
+ * @access  Private/User
+ */
+export const retryPayment = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      res.status(404).json({ success: false, message: 'Booking not found' });
+      return;
+    }
+
+    if (booking.user.toString() !== req.user!._id.toString()) {
+      res.status(403).json({ success: false, message: 'You can only retry payment for your own booking' });
+      return;
+    }
+
+    if (booking.status !== 'pending' || booking.paymentStatus !== 'unpaid') {
+      res.status(400).json({ success: false, message: 'Only pending unpaid bookings can be paid again' });
+      return;
+    }
+
+    const service = await Service.findById(booking.service).select('isActive isFree');
+    if (!service || !service.isActive || service.isFree) {
+      res.status(409).json({ success: false, message: 'This booking is no longer eligible for payment' });
+      return;
+    }
+
+    // Reuse an untouched PaymentIntent where possible. This avoids creating
+    // more than one charge opportunity for a single pending booking.
+    if (booking.pendingStripePaymentIntentId) {
+      const existingIntent = await stripe.paymentIntents.retrieve(booking.pendingStripePaymentIntentId);
+
+      if (existingIntent.status === 'succeeded' || existingIntent.status === 'processing') {
+        res.status(409).json({
+          success: false,
+          message: 'Payment is already being verified. Please wait for booking confirmation.',
+        });
+        return;
+      }
+
+      if (existingIntent.status === 'requires_payment_method' && existingIntent.client_secret) {
+        res.status(200).json({
+          success: true,
+          data: booking,
+          clientSecret: existingIntent.client_secret,
+        });
+        return;
+      }
+
+      if (existingIntent.status !== 'canceled') {
+        await stripe.paymentIntents.cancel(existingIntent.id);
+      }
+    }
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(booking.totalPrice * 100),
+      currency: 'inr',
+      metadata: { bookingId: booking._id.toString() },
+    });
+
+    if (!paymentIntent.client_secret) {
+      res.status(502).json({ success: false, message: 'Could not prepare a payment session. Please try again.' });
+      return;
+    }
+
+    booking.pendingStripePaymentIntentId = paymentIntent.id;
+    await booking.save();
+
+    res.status(200).json({
+      success: true,
+      data: booking,
+      clientSecret: paymentIntent.client_secret,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @desc    Get single booking by ID
  * @route   GET /api/bookings/:id
  * @access  Private (owner or admin)
@@ -473,7 +560,6 @@ export const getBookingById = async (
     next(error);
   }
 };
-
 /**
  * @desc    Cancel a booking (User — own booking only)
  * @route   PATCH /api/bookings/:id/cancel
@@ -574,78 +660,6 @@ export const updateBookingStatus = async (
       res.status(404).json({ success: false, message: 'Booking not found' });
       return;
     }
-
-    res.status(200).json({ success: true, data: booking });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * @desc    Confirm booking after successful Stripe payment (in-app Elements flow)
- * @route   POST /api/bookings/:id/confirm-payment
- * @access  Private/User
- */
-export const confirmPayment = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const { paymentIntentId } = req.body;
-    if (!paymentIntentId) {
-      res.status(400).json({ success: false, message: 'Payment intent ID is required' });
-      return;
-    }
-
-    const booking = await Booking.findById(req.params.id).populate('user service');
-    if (!booking) {
-      res.status(404).json({ success: false, message: 'Booking not found' });
-      return;
-    }
-
-    // Only the booking owner can confirm
-    if (booking.user._id.toString() !== req.user!._id.toString()) {
-      res.status(403).json({ success: false, message: 'Access denied' });
-      return;
-    }
-
-    // Verify payment with Stripe
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
-    if (paymentIntent.metadata.bookingId !== req.params.id) {
-      res.status(400).json({ success: false, message: 'Payment does not match this booking' });
-      return;
-    }
-
-    if (paymentIntent.status !== 'succeeded') {
-      res.status(400).json({ success: false, message: 'Payment has not been completed' });
-      return;
-    }
-
-    // Already confirmed via webhook — idempotent
-    if (booking.paymentStatus === 'paid') {
-      res.status(200).json({ success: true, data: booking });
-      return;
-    }
-
-    booking.paymentStatus = 'paid';
-    booking.status = 'confirmed';
-    await booking.save();
-
-    const user = booking.user as unknown as { name: string; email: string };
-    const service = booking.service as unknown as { title: string };
-
-    appEvents.emit('booking.created', {
-      userName: user.name,
-      userEmail: user.email,
-      serviceName: service.title,
-      startDate: booking.startDate.toLocaleDateString('en-IN'),
-      endDate: booking.endDate.toLocaleDateString('en-IN'),
-      totalDays: booking.totalDays,
-      totalPrice: booking.totalPrice,
-      bookingId: booking._id.toString(),
-      ...(booking.guestCount && { guestCount: booking.guestCount }),
-    });
 
     res.status(200).json({ success: true, data: booking });
   } catch (error) {

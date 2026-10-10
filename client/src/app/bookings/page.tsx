@@ -18,6 +18,7 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>("all");
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.push("/login");
@@ -52,6 +53,23 @@ export default function BookingsPage() {
       toast.error(error?.response?.data?.message || "Cancellation failed");
     } finally {
       setCancelling(null);
+    }
+  };
+
+  const handleRetryPayment = async (bookingId: string) => {
+    setRetrying(bookingId);
+    try {
+      const { data } = await api.post(`/bookings/${bookingId}/retry-payment`);
+      if (!data.clientSecret) throw new Error("Payment session was not created");
+
+      router.push(
+        `/checkout?clientSecret=${encodeURIComponent(data.clientSecret)}&bookingId=${bookingId}`,
+      );
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      toast.error(error.response?.data?.message || "Unable to retry payment");
+    } finally {
+      setRetrying(null);
     }
   };
 
@@ -365,6 +383,29 @@ export default function BookingsPage() {
                       </div>
                     </div>
 
+                    <div className="flex flex-wrap items-center gap-2">
+                    {/* Retry payment */}
+                    {booking.status === "pending" && booking.paymentStatus === "unpaid" && (
+                      <button
+                        id={`retry-payment-${booking._id}`}
+                        onClick={() => handleRetryPayment(booking._id)}
+                        disabled={retrying === booking._id}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-yellow-400 px-4 text-sm font-semibold text-slate-950 transition-all duration-200 hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                      >
+                        {retrying === booking._id ? (
+                          <>
+                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-900/30 border-t-slate-900" />
+                            Preparing payment...
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard size={15} />
+                            Retry Payment
+                          </>
+                        )}
+                      </button>
+                    )}
+
                     {/* Cancel */}
                     {isActive && (
                       <button
@@ -386,6 +427,7 @@ export default function BookingsPage() {
                         )}
                       </button>
                     )}
+                    </div>
                   </div>
                 </div>
               );

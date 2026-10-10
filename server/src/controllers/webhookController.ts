@@ -17,7 +17,7 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
   try {
     event = stripe.webhooks.constructEvent(
-      req.body, // Must be raw body buffer
+      req.body,
       signature,
       env.STRIPE_WEBHOOK_SECRET
     );
@@ -36,17 +36,30 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
 
     if (bookingId) {
       try {
-        const booking = await Booking.findById(bookingId).populate('service');
-        if (booking) {
-          booking.paymentStatus = 'paid';
-          booking.status = 'confirmed';
-          await booking.save();
+        // Atomically transition only an unpaid, pending booking. This makes
+        // repeated Stripe webhook deliveries idempotent and prevents duplicate
+        // confirmation emails when deliveries overlap.
+        const booking = await Booking.findOneAndUpdate(
+          { _id: bookingId, paymentStatus: 'unpaid', status: 'pending' },
+          {
+            $set: {
+              paymentStatus: 'paid',
+              status: 'confirmed',
+              stripePaymentIntentId: paymentIntent.id,
+            },
+            $unset: { pendingStripePaymentIntentId: 1 },
+          },
+          { new: true }
+        )
+          .populate('user', 'name email')
+          .populate('service', 'title');
 
+        if (booking) {
           // Emit booking.created to send the confirmation email
           appEvents.emit('booking.created', {
-            userName: (booking.user as any)?.name || 'Customer',
-            userEmail: (booking.user as any)?.email || 'customer@example.com',
-            serviceName: (booking.service as any).title,
+            userName: (booking.user as unknown as { name?: string })?.name || 'Customer',
+            userEmail: (booking.user as unknown as { email?: string })?.email || 'customer@example.com',
+            serviceName: (booking.service as unknown as { title?: string })?.title || 'Service',
             startDate: booking.startDate.toLocaleDateString('en-IN'),
             endDate: booking.endDate.toLocaleDateString('en-IN'),
             totalDays: booking.totalDays,
@@ -60,6 +73,10 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
         }
       } catch (err) {
         console.error('Error updating booking after successful payment:', err);
+        // Return a non-2xx response so Stripe retries this signed event instead
+        // of leaving a successfully paid booking in the pending state.
+        res.status(500).json({ received: false });
+        return;
       }
     }
   }
@@ -79,6 +96,8 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
         }
       } catch (err) {
         console.error('Error cancelling booking after payment failure:', err);
+        res.status(500).json({ received: false });
+        return;
       }
     }
   }

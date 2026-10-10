@@ -9,7 +9,6 @@ import {
 } from "@stripe/react-stripe-js";
 import { ShieldCheck, Lock, CreditCard, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
-import api from "@/lib/api";
 
 interface Props {
   bookingId: string;
@@ -50,17 +49,9 @@ export default function CheckoutForm({ bookingId }: Props) {
     }
 
     if (paymentIntent && paymentIntent.status === "succeeded") {
-      // Notify backend to confirm the booking
-      try {
-        await api.post(`/bookings/${bookingId}/confirm-payment`, {
-          paymentIntentId: paymentIntent.id,
-        });
-      } catch {
-        // Even if this fails, Stripe webhook will handle it
-        console.warn("Could not notify server, webhook will handle confirmation.");
-      }
-
-      toast.success("🎉 Payment successful! Booking confirmed.");
+      // Only Stripe's signed webhook can mark a booking as paid and confirmed.
+      // The booking remains pending until that server-to-server confirmation arrives.
+      toast.success("🎉 Payment received. Confirming your booking...");
       router.push("/checkout/success");
     }
   };

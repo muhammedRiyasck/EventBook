@@ -6,8 +6,8 @@ import {
   getAllBookings,
   getBookingById,
   cancelBooking,
+  retryPayment,
   updateBookingStatus,
-  confirmPayment,
 } from '../controllers/bookingController';
 import { protect, isAdmin } from '../middleware/auth';
 
@@ -32,9 +32,9 @@ router.post(
 );
 
 router.get('/my', protect, getMyBookings);
+router.post('/:id/retry-payment', protect, retryPayment);
 router.get('/:id', protect, getBookingById);
 router.patch('/:id/cancel', protect, cancelBooking);
-router.post('/:id/confirm-payment', protect, confirmPayment);
 
 // Admin routes
 router.get('/', protect, isAdmin, getAllBookings);

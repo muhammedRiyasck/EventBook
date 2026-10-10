@@ -15,6 +15,7 @@ export interface IBooking extends Document {
   paymentStatus: PaymentStatus;
   notes?: string;
   stripePaymentIntentId?: string;
+  pendingStripePaymentIntentId?: string;
   refundId?: string;
   refundAmount?: number;
   refundReason?: string;
@@ -74,6 +75,7 @@ const BookingSchema = new Schema<IBooking>(
       default: 'unpaid',
     },
     stripePaymentIntentId: { type: String },
+    pendingStripePaymentIntentId: { type: String },
     // Refund fields
     refundId: { type: String },
     refundAmount: { type: Number, min: 0 },
