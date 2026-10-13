@@ -38,6 +38,22 @@ router.patch('/:id/cancel', protect, cancelBooking);
 
 // Admin routes
 router.get('/', protect, isAdmin, getAllBookings);
-router.patch('/:id/status', protect, isAdmin, updateBookingStatus);
+router.patch(
+  '/:id/status',
+  protect,
+  isAdmin,
+  [
+    body('status')
+      .isIn(['pending', 'confirmed', 'cancelled', 'completed'])
+      .withMessage('Invalid booking status'),
+    body('reason')
+      .optional()
+      .isString()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage('Reason cannot exceed 500 characters'),
+  ],
+  updateBookingStatus
+);
 
 export default router;

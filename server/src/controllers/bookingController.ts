@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { validationResult } from 'express-validator';
-import Booking from '../models/Booking';
+import Booking, { BookingStatus } from '../models/Booking';
 import Service from '../models/Service';
 import { AuthRequest } from '../middleware/auth';
 import stripe from '../config/stripe';
@@ -640,7 +640,13 @@ export const updateBookingStatus = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { status } = req.body;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({ success: false, errors: errors.array() });
+      return;
+    }
+
+    const { status, reason } = req.body as { status: BookingStatus; reason?: string };
     const validStatuses = ['pending', 'confirmed', 'cancelled', 'completed'];
 
     if (!validStatuses.includes(status)) {
@@ -648,16 +654,88 @@ export const updateBookingStatus = async (
       return;
     }
 
-    const booking = await Booking.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
+    const currentBooking = await Booking.findById(req.params.id).select(
+      'status paymentStatus stripePaymentIntentId'
+    );
+
+    if (!currentBooking) {
+      res.status(404).json({ success: false, message: 'Booking not found' });
+      return;
+    }
+
+    if (currentBooking.status === status) {
+      res.status(400).json({ success: false, message: `Booking is already ${status}` });
+      return;
+    }
+
+    // A booking moves forward through a defined lifecycle.  In particular, an
+    // admin must never be able to revive cancelled/completed bookings or mark
+    // an unpaid payment attempt as confirmed.
+    const allowedTransitions: Record<BookingStatus, BookingStatus[]> = {
+      pending: ['cancelled'],
+      confirmed: ['completed', 'cancelled'],
+      cancelled: [],
+      completed: [],
+    };
+
+    if (!allowedTransitions[currentBooking.status].includes(status)) {
+      res.status(409).json({
+        success: false,
+        message: `Cannot change a ${currentBooking.status} booking to ${status}`,
+        allowedTransitions: allowedTransitions[currentBooking.status],
+      });
+      return;
+    }
+
+    const trimmedReason = reason?.trim();
+    if (status === 'cancelled' && !trimmedReason) {
+      res.status(400).json({
+        success: false,
+        message: 'A cancellation reason is required for the audit record',
+      });
+      return;
+    }
+
+    // Stripe refunds are a financial operation, not a status edit.  Requiring
+    // the refund workflow prevents a paid booking from being silently cancelled
+    // while the customer is still owed money.
+    if (
+      status === 'cancelled' &&
+      currentBooking.paymentStatus !== 'unpaid' &&
+      currentBooking.stripePaymentIntentId
+    ) {
+      res.status(409).json({
+        success: false,
+        message: 'Refund this paid booking before cancelling it',
+      });
+      return;
+    }
+
+    const booking = await Booking.findOneAndUpdate(
+      { _id: currentBooking._id, status: currentBooking.status },
+      {
+        $set: { status },
+        $push: {
+          statusHistory: {
+            fromStatus: currentBooking.status,
+            toStatus: status,
+            changedBy: req.user!._id,
+            actor: 'admin',
+            ...(trimmedReason && { reason: trimmedReason }),
+            changedAt: new Date(),
+          },
+        },
+      },
+      { new: true, runValidators: true }
     )
       .populate('user', 'name email')
       .populate('service', 'title');
 
     if (!booking) {
-      res.status(404).json({ success: false, message: 'Booking not found' });
+      res.status(409).json({
+        success: false,
+        message: 'Booking status changed by another request. Refresh and try again.',
+      });
       return;
     }
 

@@ -75,6 +75,16 @@ export interface Service {
 export type PaymentStatus = "unpaid" | "paid" | "refunded" | "partially_refunded";
 export type RefundStatus = "none" | "pending" | "succeeded" | "failed";
 export type BookingStatus = "pending" | "confirmed" | "cancelled" | "completed";
+export type BookingStatusActor = "admin" | "customer" | "system";
+
+export interface BookingStatusHistory {
+  fromStatus: BookingStatus;
+  toStatus: BookingStatus;
+  changedBy?: User | string;
+  actor: BookingStatusActor;
+  reason?: string;
+  changedAt: string;
+}
 
 export interface Booking {
   _id: string;
@@ -85,6 +95,7 @@ export interface Booking {
   totalDays: number;
   totalPrice: number;
   status: BookingStatus;
+  statusHistory?: BookingStatusHistory[];
   paymentStatus: PaymentStatus;
   notes?: string;
   // Stripe & Refund fields

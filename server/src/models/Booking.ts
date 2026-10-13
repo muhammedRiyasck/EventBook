@@ -3,6 +3,16 @@ import mongoose, { Document, Schema, Types } from 'mongoose';
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
 export type PaymentStatus = 'unpaid' | 'paid' | 'refunded' | 'partially_refunded';
 export type RefundStatus = 'none' | 'pending' | 'succeeded' | 'failed';
+export type BookingStatusActor = 'admin' | 'customer' | 'system';
+
+export interface IBookingStatusHistory {
+  fromStatus: BookingStatus;
+  toStatus: BookingStatus;
+  changedBy?: Types.ObjectId;
+  actor: BookingStatusActor;
+  reason?: string;
+  changedAt: Date;
+}
 
 export interface IBooking extends Document {
   user: Types.ObjectId;
@@ -12,6 +22,7 @@ export interface IBooking extends Document {
   totalDays: number;
   totalPrice: number;
   status: BookingStatus;
+  statusHistory: IBookingStatusHistory[];
   paymentStatus: PaymentStatus;
   notes?: string;
   stripePaymentIntentId?: string;
@@ -69,6 +80,28 @@ const BookingSchema = new Schema<IBooking>(
       enum: ['pending', 'confirmed', 'cancelled', 'completed'],
       default: 'pending',
     },
+    statusHistory: [
+      {
+        fromStatus: {
+          type: String,
+          enum: ['pending', 'confirmed', 'cancelled', 'completed'],
+          required: true,
+        },
+        toStatus: {
+          type: String,
+          enum: ['pending', 'confirmed', 'cancelled', 'completed'],
+          required: true,
+        },
+        changedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        actor: {
+          type: String,
+          enum: ['admin', 'customer', 'system'],
+          required: true,
+        },
+        reason: { type: String, maxlength: 500 },
+        changedAt: { type: Date, default: Date.now },
+      },
+    ],
     paymentStatus: {
       type: String,
       enum: ['unpaid', 'paid', 'refunded', 'partially_refunded'],
