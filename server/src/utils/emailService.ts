@@ -52,6 +52,9 @@ const sendWithBrevo = async ({ to, subject, html }: SendMailOptions): Promise<vo
   if (!response.ok) {
     const errorBody = await response.json().catch(() => null) as { message?: string; code?: string } | null;
     const msg = errorBody?.message || response.statusText;
+    if (response.status === 401) {
+      throw new Error(`[Brevo API Error 401] ${msg} — Make sure BREVO_API_KEY is an active v3 API key (starts with "xkeysib-", found under SMTP & API > API Keys), not an SMTP password/key.`);
+    }
     throw new Error(`[Brevo API Error ${response.status}] ${msg}`);
   }
 };
