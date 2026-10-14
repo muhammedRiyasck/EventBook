@@ -71,7 +71,18 @@ export const getServices = async (
       search,
     } = req.query as Record<string, string>;
 
-    const query: Record<string, unknown> = { isActive: true };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const query: Record<string, unknown> = {
+      isActive: true,
+      // Exclude services whose availability window has already expired
+      $or: [
+        { availableTo: { $exists: false } },
+        { availableTo: null },
+        { availableTo: { $gte: today } },
+      ],
+    };
 
     // Full-text search
     if (search) {
