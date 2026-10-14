@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider } from "@/context/AuthContext";
 import Navbar from "@/components/layout/Navbar";
+import AdminNavbar from "@/components/layout/AdminNavbar";
 import "./index.css";
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           <Navbar />
+          <AdminNavbar />
           <main>{children}</main>
           <Toaster
             position="top-right"

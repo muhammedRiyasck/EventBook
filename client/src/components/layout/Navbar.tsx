@@ -21,6 +21,9 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  // Let AdminNavbar handle all /admin routes
+  if (pathname.startsWith("/admin")) return null;
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
