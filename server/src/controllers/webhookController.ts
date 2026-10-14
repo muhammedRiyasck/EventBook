@@ -21,9 +21,10 @@ export const handleStripeWebhook = async (req: Request, res: Response): Promise<
       signature,
       env.STRIPE_WEBHOOK_SECRET
     );
-  } catch (err: any) {
-    console.error(`⚠️  Webhook signature verification failed:`, err.message);
-    res.status(400).send(`Webhook Error: ${err.message}`);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error(`⚠️  Webhook signature verification failed:`, errorMessage);
+    res.status(400).send(`Webhook Error: ${errorMessage}`);
     return;
   }
 

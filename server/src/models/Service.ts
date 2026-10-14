@@ -126,7 +126,7 @@ const ServiceSchema = new Schema<IService>(
     pricePerDay: {
       type: Number,
       required: [
-        function(this: any) {
+        function(this: IService) {
           return !this.isFree;
         },
         'Price per day is required unless service is free'

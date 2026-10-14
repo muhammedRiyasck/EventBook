@@ -4,7 +4,6 @@ import Booking, { BookingStatus } from '../models/Booking';
 import Service from '../models/Service';
 import { AuthRequest } from '../middleware/auth';
 import stripe from '../config/stripe';
-import env from '../config/env';
 
 import appEvents from '../utils/eventEmitter';
 import {
@@ -229,8 +228,6 @@ export const createBooking = async (
 
     // ── Atomic Reservation (date-range mode) ─────────────────────────────────
 
-    let updatedService = service;
-
     if (service.bookingMode !== 'time_slot') {
       // Atomically check and reserve dates to prevent race conditions
       const reserved = await Service.findOneAndUpdate(
@@ -266,8 +263,6 @@ export const createBooking = async (
         });
         return;
       }
-
-      updatedService = reserved;
     }
 
     // ── Create Booking Record ────────────────────────────────────────────────

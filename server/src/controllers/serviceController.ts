@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { validationResult } from 'express-validator';
 import streamifier from 'streamifier';
-import Service from '../models/Service';
+import Service, { ITimeSlot } from '../models/Service';
 import cloudinary from '../config/cloudinary';
 import { AuthRequest } from '../middleware/auth';
 
@@ -455,7 +455,11 @@ export const getAvailableSlots = async (
       }
     }
 
-    let slots: any[] = [];
+    type SlotAvailability = Omit<ITimeSlot, 'isActive'> & {
+      bookedCount: number;
+      isAvailable: boolean;
+    };
+    let slots: SlotAvailability[] = [];
     if (service.bookingMode === 'time_slot' && service.timeSlots?.length) {
       slots = service.timeSlots
         .filter((s) => s.isActive)
