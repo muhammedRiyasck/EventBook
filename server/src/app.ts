@@ -21,6 +21,9 @@ connectDB();
 
 const app = express();
 
+// Trust reverse proxy (e.g. Render, Cloudflare) for rate limiting & IP detection
+app.set('trust proxy', 1);
+
 // ─── Security Middleware ────────────────────────────────────────────────────
 app.use(helmet()); // Sets secure HTTP headers
 
