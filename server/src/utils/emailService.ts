@@ -1,12 +1,9 @@
-import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 import env from '../config/env';
 import { otpEmailTemplate } from './emailTemplates/otpEmail';
 import { bookingConfirmationTemplate, BookingEmailData } from './emailTemplates/bookingConfirmation';
 import { bookingCancellationTemplate } from './emailTemplates/bookingCancellation';
 import { refundEmailTemplate, RefundEmailData } from './emailTemplates/refundEmail';
-
-const resend = env.RESEND_API_KEY ? new Resend(env.RESEND_API_KEY) : null;
 
 const transporter = (env.EMAIL_USER && env.EMAIL_PASS)
   ? nodemailer.createTransport({
@@ -26,19 +23,42 @@ interface SendMailOptions {
   html: string;
 }
 
-const sendEmail = async ({ to, subject, html }: SendMailOptions): Promise<void> => {
-  if (resend) {
-    const { error } = await resend.emails.send({
-      from: env.EMAIL_FROM || 'EventBook <onboarding@resend.dev>',
-      to,
-      subject,
-      html,
-    });
+const sendWithBrevo = async ({ to, subject, html }: SendMailOptions): Promise<void> => {
+  const senderEmail = env.BREVO_SENDER_EMAIL || env.EMAIL_USER;
+  const senderName = env.BREVO_SENDER_NAME || 'EventBook Platform';
 
-    if (error) {
-      throw new Error(`[Resend] ${error.name}: ${error.message}`);
-    }
-    return;
+  if (!senderEmail) {
+    throw new Error('[Brevo] Missing sender email. Please configure BREVO_SENDER_EMAIL or EMAIL_USER.');
+  }
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'accept': 'application/json',
+      'api-key': env.BREVO_API_KEY,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: {
+        name: senderName,
+        email: senderEmail,
+      },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => null) as { message?: string; code?: string } | null;
+    const msg = errorBody?.message || response.statusText;
+    throw new Error(`[Brevo API Error ${response.status}] ${msg}`);
+  }
+};
+
+const sendEmail = async ({ to, subject, html }: SendMailOptions): Promise<void> => {
+  if (env.BREVO_API_KEY) {
+    return sendWithBrevo({ to, subject, html });
   }
 
   if (transporter) {
@@ -52,7 +72,7 @@ const sendEmail = async ({ to, subject, html }: SendMailOptions): Promise<void> 
     return;
   }
 
-  throw new Error('No email provider configured. Please set RESEND_API_KEY in your environment variables.');
+  throw new Error('No email provider configured. Please set BREVO_API_KEY in your environment variables.');
 };
 
 /**

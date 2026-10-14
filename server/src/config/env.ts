@@ -17,8 +17,9 @@ const env = {
   NODE_ENV: process.env.NODE_ENV || 'development',
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
-  RESEND_API_KEY: process.env.RESEND_API_KEY || '',
-  EMAIL_FROM: process.env.EMAIL_FROM || 'EventBook <onboarding@resend.dev>',
+  BREVO_API_KEY: process.env.BREVO_API_KEY || '',
+  BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || '',
+  BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME || 'EventBook Platform',
 };
 
 export default env;
