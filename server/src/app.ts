@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -60,7 +60,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Sanitize data against NoSQL injection attacks (custom for Express 5 compatibility)
-app.use((req, res, next) => {
+app.use((req: Request, _res: Response, next: NextFunction) => {
   if (req.body) mongoSanitize.sanitize(req.body);
   if (req.query) mongoSanitize.sanitize(req.query);
   if (req.params) mongoSanitize.sanitize(req.params);
@@ -74,12 +74,12 @@ app.use('/api/bookings', apiLimiter, bookingRoutes);
 app.use('/api/payments', apiLimiter, paymentRoutes);
 
 // Health check endpoint
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ success: true, message: 'EventBook API is running', timestamp: new Date() });
 });
 
 // 404 handler for unknown routes
-app.use((_req, res) => {
+app.use((_req: Request, res: Response) => {
   res.status(404).json({ success: false, message: 'Route not found' });
 });
 
