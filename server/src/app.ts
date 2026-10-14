@@ -11,6 +11,7 @@ import authRoutes from './routes/auth';
 import serviceRoutes from './routes/services';
 import bookingRoutes from './routes/bookings';
 import paymentRoutes from './routes/payments';
+import adminRoutes from './routes/admin';
 import webhookRoutes from './routes/webhooks';
 import errorHandler from './middleware/errorHandler';
 // Import eventEmitter to ensure all email listeners are registered at startup
@@ -75,6 +76,7 @@ app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/services', apiLimiter, serviceRoutes);
 app.use('/api/bookings', apiLimiter, bookingRoutes);
 app.use('/api/payments', apiLimiter, paymentRoutes);
+app.use('/api/admin', apiLimiter, adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', (_req: Request, res: Response) => {
