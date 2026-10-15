@@ -373,25 +373,22 @@ export const issueRefund = async (
 
     const refundAmountPaise = Math.round(refundRupees * 100);
 
-    const pi = await stripe.paymentIntents.retrieve(booking.stripePaymentIntentId, {
-      expand: ['charges'],
-    });
-
-    const chargeId = (pi as unknown as { charges?: { data?: Array<{ id: string }> } }).charges?.data?.[0]?.id;
-    if (!chargeId) {
-      res.status(400).json({ success: false, message: 'Could not find charge for this payment' });
+    let refund;
+    try {
+      refund = await stripe.refunds.create({
+        payment_intent: booking.stripePaymentIntentId,
+        amount: refundAmountPaise,
+        reason: 'requested_by_customer',
+        metadata: {
+          bookingId: booking._id.toString(),
+          adminReason: reason || '',
+        },
+      });
+    } catch (stripeErr: unknown) {
+      const msg = stripeErr instanceof Error ? stripeErr.message : 'Stripe refund failed';
+      res.status(400).json({ success: false, message: msg });
       return;
     }
-
-    const refund = await stripe.refunds.create({
-      charge: chargeId,
-      amount: refundAmountPaise,
-      reason: 'requested_by_customer',
-      metadata: {
-        bookingId: booking._id.toString(),
-        adminReason: reason || '',
-      },
-    });
 
     const isFullRefund = refundRupees >= booking.totalPrice;
     booking.refundId = refund.id;

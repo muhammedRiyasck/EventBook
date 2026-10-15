@@ -8,6 +8,7 @@ import toast from "react-hot-toast";
 import api from "@/lib/api";
 import { Booking, Service } from "@/types";
 import { useAuth } from "@/context/AuthContext";
+import CancelBookingModal from "@/components/CancelBookingModal";
 
 type TabType = "all" | "upcoming" | "past";
 
@@ -17,7 +18,8 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>("all");
-  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancellingBooking, setCancellingBooking] = useState<Booking | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,18 +43,21 @@ export default function BookingsPage() {
     if (isAuthenticated) fetchBookings(activeTab);
   }, [activeTab, isAuthenticated]);
 
-  const handleCancel = async (bookingId: string) => {
-    if (!confirm("Are you sure you want to cancel this booking?")) return;
-    setCancelling(bookingId);
+  const handleConfirmCancel = async (reason: string) => {
+    if (!cancellingBooking) return;
+    setIsCancelling(true);
     try {
-      await api.patch(`/bookings/${bookingId}/cancel`);
-      toast.success("Booking cancelled");
+      const { data } = await api.patch(`/bookings/${cancellingBooking._id}/cancel`, {
+        reason: reason.trim() || undefined,
+      });
+      toast.success(data?.message || "Booking cancelled successfully");
+      setCancellingBooking(null);
       fetchBookings(activeTab);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       toast.error(error?.response?.data?.message || "Cancellation failed");
     } finally {
-      setCancelling(null);
+      setIsCancelling(false);
     }
   };
 
@@ -425,21 +430,12 @@ export default function BookingsPage() {
                     {isActive && (
                       <button
                         id={`cancel-booking-${booking._id}`}
-                        onClick={() => handleCancel(booking._id)}
-                        disabled={cancelling === booking._id}
+                        onClick={() => setCancellingBooking(booking)}
+                        disabled={cancellingBooking?._id === booking._id && isCancelling}
                         className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-red-400/15 bg-red-400/[0.05] px-4 text-sm font-semibold text-red-400 transition-all duration-200 hover:border-red-400/25 hover:bg-red-400/10 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                       >
-                        {cancelling === booking._id ? (
-                          <>
-                            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-400/30 border-t-red-400" />
-                            Cancelling...
-                          </>
-                        ) : (
-                          <>
-                            <X size={15} />
-                            Cancel Booking
-                          </>
-                        )}
+                        <X size={15} />
+                        Cancel Booking
                       </button>
                     )}
                     </div>
@@ -450,6 +446,16 @@ export default function BookingsPage() {
           </div>
         )}
       </div>
+
+      {/* Cancellation Confirmation Modal */}
+      {cancellingBooking && (
+        <CancelBookingModal
+          booking={cancellingBooking}
+          onConfirm={handleConfirmCancel}
+          onClose={() => !isCancelling && setCancellingBooking(null)}
+          isLoading={isCancelling}
+        />
+      )}
     </div>
   );
 }
