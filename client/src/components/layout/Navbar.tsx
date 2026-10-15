@@ -11,6 +11,10 @@ import {
   User,
   LayoutDashboard,
   Settings,
+  Sparkles,
+  ChevronDown,
+  ShieldCheck,
+  Ticket,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -20,9 +24,6 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-
-  // Let AdminNavbar handle all /admin routes
-  if (pathname.startsWith("/admin")) return null;
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -35,204 +36,317 @@ export default function Navbar() {
     setDropdownOpen(false);
   }, [pathname]);
 
+  // Click outside to close user dropdown
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("#user-menu-wrapper")) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [dropdownOpen]);
+
+  // Let AdminNavbar handle all /admin routes
+  if (pathname?.startsWith("/admin")) return null;
+
+  const isServicesActive = pathname?.startsWith("/services");
+  const isBookingsActive = pathname === "/bookings";
+
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 h-[72px] transition-all duration-300 ease-in-out border-b border-transparent ${scrolled ? "bg-[#050d1e]/92 border-b-white/10 backdrop-blur-[20px] shadow-[0_4px_30px_rgba(0,0,0,0.4)]" : ""}`}
+      className={`fixed top-0 left-0 right-0 z-50 h-[72px] transition-all duration-300 ease-in-out border-b ${
+        scrolled
+          ? "bg-[#050d1e]/95 border-white/10 backdrop-blur-[20px] shadow-[0_4px_30px_rgba(0,0,0,0.5)]"
+          : "bg-[#050d1e]/80 border-white/[0.06] backdrop-blur-[12px]"
+      }`}
     >
-      <div
-        className={`h-[72px] flex items-center justify-between gap-8 container mx-auto px-4`}
-      >
-        {/* Logo */}
+      <div className="h-[72px] max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-6">
+        {/* Brand Logo */}
         <Link
           href="/"
-          className="flex items-center gap-2 font-display text-[20px] font-extrabold tracking-tight text-white transition-opacity duration-200 shrink-0 hover:opacity-85"
+          className="flex items-center gap-3 group shrink-0 transition-transform duration-200 hover:scale-[1.02]"
         >
-          <CalendarDays size={22} className="text-[var(--gold-400)] shrink-0" />
-          <span>
-            Event<span className="text-[var(--gold-400)]">Book</span>
+          <div className="w-[44px] h-[44px] rounded-[13px] bg-gradient-to-br from-[#ffd700] to-[#f59e0b] flex items-center justify-center shadow-[0_6px_20px_rgba(255,215,0,0.28)] shrink-0 transition-transform duration-200 group-hover:shadow-[0_8px_24px_rgba(255,215,0,0.4)]">
+            <CalendarDays size={24} className="text-[#0f1c3f]" strokeWidth={2.5} />
+          </div>
+          <span className="font-display font-extrabold text-[22px] tracking-tight text-white">
+            Event<span className="text-[#ffd700]">Book</span>
           </span>
         </Link>
 
-        {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-1 flex-1">
+        {/* Desktop Nav Links */}
+        <div className="hidden md:flex items-center gap-1.5 flex-1 ml-4">
           <Link
             href="/services"
-            className={`px-[14px] py-[6px] rounded-full text-[14px] font-medium text-slate-300 transition-colors duration-200 text-yellow-600 outline hover:text-white hover:bg-white/10 ${pathname.startsWith("/services") ? "!text-[var(--gold-400)] !bg-[#ffd700]/10 " : ""}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[13.5px] font-medium transition-all duration-200 ${
+              isServicesActive
+                ? "text-[#ffd700] bg-yellow-400/10 border border-yellow-400/25 shadow-[0_0_15px_rgba(250,204,21,0.08)]"
+                : "text-slate-300 border border-transparent hover:text-white hover:bg-white/[0.06]"
+            }`}
           >
-            Browse Services
+            <Sparkles size={15} className={isServicesActive ? "text-[#ffd700]" : "text-slate-400"} />
+            Explore Services
           </Link>
+
           {isAuthenticated && !isAdmin && (
             <Link
               href="/bookings"
-              className={`px-[14px] py-[6px] rounded-full text-[14px] font-medium text-slate-300 transition-colors duration-200 text-yellow-600 outline mx-2 hover:text-white hover:bg-white/10 ${pathname === "/bookings" ? " !text-[var(--gold-400)] !bg-[#ffd700]/10 " : ""}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-[13.5px] font-medium transition-all duration-200 ${
+                isBookingsActive
+                  ? "text-[#ffd700] bg-yellow-400/10 border border-yellow-400/25 shadow-[0_0_15px_rgba(250,204,21,0.08)]"
+                  : "text-slate-300 border border-transparent hover:text-white hover:bg-white/[0.06]"
+              }`}
             >
+              <Ticket size={15} className={isBookingsActive ? "text-[#ffd700]" : "text-slate-400"} />
               My Bookings
             </Link>
           )}
+
           {isAdmin && (
             <Link
               href="/admin/dashboard"
-              className={`px-[14px] py-[6px] rounded-full text-[14px] font-medium outline mx-2  text-slate-300 transition-colors duration-200 text-yellow-600 hover:text-white hover:bg-white/10 ${pathname.startsWith("/admin") ? "!text-[var(--gold-400)] !bg-[#ffd700]/10" : ""}`}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-[13.5px] font-medium transition-all duration-200 text-yellow-400/90 hover:text-[#ffd700] hover:bg-yellow-400/10 border border-yellow-400/20"
             >
+              <ShieldCheck size={15} className="text-[#ffd700]" />
               Admin Panel
             </Link>
           )}
         </div>
 
-        {/* Auth Section */}
-        <div className="hidden md:flex items-center gap-2.5 shrink-0">
+        {/* Right Section: Auth & Profile */}
+        <div className="hidden md:flex items-center gap-3 shrink-0">
           {isAuthenticated ? (
-            <div className="relative">
+            <div className="relative" id="user-menu-wrapper">
               <button
-                className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full py-1.5 pr-3 pl-1.5 text-white cursor-pointer transition-all duration-200 hover:border-[var(--gold-400)] hover:bg-white/10"
+                className={`flex items-center gap-2.5 bg-white/[0.04] border rounded-full py-1.5 pr-3.5 pl-1.5 text-white cursor-pointer transition-all duration-200 hover:border-yellow-400/40 hover:bg-white/[0.08] ${
+                  dropdownOpen ? "border-yellow-400/50 bg-white/[0.08] shadow-[0_0_15px_rgba(250,204,21,0.15)]" : "border-white/10"
+                }`}
                 onClick={() => setDropdownOpen(!dropdownOpen)}
                 id="user-menu-btn"
+                aria-expanded={dropdownOpen}
               >
-                <div className="w-[30px] h-[30px] rounded-full bg-yellow-400 flex items-center justify-center text-[13px] font-bold text-slate-900 shrink-0">
+                <div className="w-[32px] h-[32px] rounded-full bg-gradient-to-br from-[#ffd700] to-[#f59e0b] flex items-center justify-center text-[13px] font-extrabold text-[#0f1c3f] shadow-[0_2px_8px_rgba(250,204,21,0.3)] shrink-0">
                   {user?.name?.charAt(0).toUpperCase()}
                 </div>
-                <span className="text-[13px] font-medium">
+                <span className="text-[13.5px] font-medium text-slate-200 max-w-[120px] truncate">
                   {user?.name?.split(" ")[0]}
                 </span>
+                <ChevronDown
+                  size={14}
+                  className={`text-slate-400 transition-transform duration-200 ${
+                    dropdownOpen ? "rotate-180 text-yellow-400" : ""
+                  }`}
+                />
               </button>
+
+              {/* User Dropdown Menu */}
               {dropdownOpen && (
-                <div className="absolute top-[calc(100%+10px)] right-0 w-[220px] bg-slate-800 border border-white/10 rounded-lg shadow-lg overflow-hidden animate-in fade-in duration-150 backdrop-blur-[20px]">
-                  <div className="px-4 py-3.5">
-                    <p className="text-[14px] font-semibold text-white mb-0.5">
-                      {user?.name}
-                    </p>
-                    <p className="text-[12px] text-slate-400 mb-2 whitespace-nowrap overflow-hidden text-ellipsis">
-                      {user?.email}
-                    </p>
-                    <span
-                      className={`badge ${isAdmin ? "badge-info" : ""} px-2 outline rounded-full`}
-                      style={{
-                        background: "rgba(255,215,0,0.15)",
-                        color: "#ffd700",
-                        fontSize: "11px",
-                      }}
-                    >
-                      {user?.role}
+                <div className="absolute top-[calc(100%+10px)] right-0 w-[240px] bg-[#0a132d]/98 border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,215,0,0.05)] backdrop-blur-[24px] overflow-hidden animate-in fade-in zoom-in-95 duration-150 z-50">
+                  {/* User Info Header */}
+                  <div className="px-4 py-3.5 bg-white/[0.02]">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-[36px] h-[36px] rounded-full bg-gradient-to-br from-[#ffd700] to-[#f59e0b] flex items-center justify-center text-[14px] font-extrabold text-[#0f1c3f] shrink-0">
+                        {user?.name?.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-bold text-white truncate">
+                          {user?.name}
+                        </p>
+                        <p className="text-[12px] text-slate-400 truncate">
+                          {user?.email}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase tracking-wider bg-yellow-400/10 text-[#ffd700] border border-yellow-400/20">
+                      {isAdmin ? <ShieldCheck size={11} /> : <User size={11} />}
+                      {user?.role || "Client"}
                     </span>
                   </div>
-                  <div className="h-[1px] bg-white/10" />
-                  {isAdmin ? (
-                    <>
-                      <Link
-                        href="/admin/dashboard"
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-300 cursor-pointer transition-colors duration-150 w-full text-left bg-transparent hover:bg-white/5 hover:text-white"
-                      >
-                        <LayoutDashboard size={15} /> Dashboard
-                      </Link>
-                      <Link
-                        href="/admin/services"
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-300 cursor-pointer transition-colors duration-150 w-full text-left bg-transparent hover:bg-white/5 hover:text-white"
-                      >
-                        <Settings size={15} /> Manage Services
-                      </Link>
-                    </>
-                  ) : (
-                    <>
-                      <Link
-                        href="/dashboard"
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-300 cursor-pointer transition-colors duration-150 w-full text-left bg-transparent hover:bg-white/5 hover:text-white"
-                      >
-                        <User size={15} /> Dashboard
-                      </Link>
-                      <Link
-                        href="/bookings"
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-300 cursor-pointer transition-colors duration-150 w-full text-left bg-transparent hover:bg-white/5 hover:text-white outline "
-                      >
-                        <CalendarDays size={15} /> My Bookings
-                      </Link>
-                    </>
-                  )}
-                  <div className="h-[1px] bg-white/10" />
-                  <button
-                    className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-slate-300 cursor-pointer transition-colors duration-150 w-full text-left bg-transparent hover:bg-white/5 hover:text-white !text-red-500 hover:!bg-red-500/10"
-                    onClick={logout}
-                  >
-                    <LogOut size={15} /> Sign Out
-                  </button>
+
+                  <div className="h-[1px] bg-white/[0.08]" />
+
+                  {/* Menu Links */}
+                  <div className="p-1.5 space-y-0.5">
+                    {isAdmin ? (
+                      <>
+                        <Link
+                          href="/admin/dashboard"
+                          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+                        >
+                          <LayoutDashboard size={16} className="text-yellow-400" />
+                          Admin Dashboard
+                        </Link>
+                        <Link
+                          href="/admin/services"
+                          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+                        >
+                          <Settings size={16} className="text-yellow-400" />
+                          Manage Services
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <Link
+                          href="/dashboard"
+                          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+                        >
+                          <User size={16} className="text-yellow-400" />
+                          My Profile & Stats
+                        </Link>
+                        <Link
+                          href="/bookings"
+                          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+                        >
+                          <CalendarDays size={16} className="text-yellow-400" />
+                          My Bookings
+                        </Link>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="h-[1px] bg-white/[0.08]" />
+
+                  {/* Sign Out */}
+                  <div className="p-1.5">
+                    <button
+                      className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors w-full text-left"
+                      onClick={logout}
+                    >
+                      <LogOut size={16} />
+                      Sign Out
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           ) : (
-            <>
+            <div className="flex items-center gap-2.5">
               <Link
                 href="/login"
-                className="btn btn-secondary btn-sm text-white outline rounded-full px-4 py-2 hover:bg-yellow-400 hover:text-black"
+                className="px-4 py-2 rounded-full text-[13.5px] font-medium text-slate-200 hover:text-white hover:bg-white/[0.06] border border-transparent hover:border-white/10 transition-all duration-200"
               >
                 Sign In
               </Link>
               <Link
                 href="/register"
-                className="btn btn-primary btn-sm text-white outline rounded-full px-4 py-2 hover:bg-yellow-400 hover:text-black"
+                className="px-5 py-2 rounded-full text-[13.5px] font-bold bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 shadow-[0_4px_16px_rgba(250,204,21,0.22)] hover:shadow-[0_6px_22px_rgba(250,204,21,0.38)] hover:brightness-105 active:scale-95 transition-all duration-200"
               >
                 Get Started
               </Link>
-            </>
+            </div>
           )}
         </div>
 
-        {/* Mobile toggle */}
+        {/* Mobile Hamburger Button */}
         <button
-          className="md:hidden bg-transparent text-white p-1"
+          className="md:hidden flex items-center justify-center p-2 rounded-xl bg-white/[0.05] border border-white/10 text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
           onClick={() => setIsOpen(!isOpen)}
-          aria-label="Toggle menu"
+          aria-label="Toggle navigation menu"
         >
-          {isOpen ? <X size={22} /> : <Menu size={22} />}
+          {isOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile Drawer */}
       {isOpen && (
-        <div className="flex md:hidden flex-col px-4 py-3 pb-5 bg-[#050d1e]/97 border-t border-white/10 backdrop-blur-[20px]">
-          <Link
-            href="/services"
-            className="px-2 py-3 text-[15px] text-slate-300 font-medium border-b border-white/5 block hover:text-[var(--gold-400)]"
-          >
-            Browse Services
-          </Link>
-          {isAuthenticated && !isAdmin && (
-            <Link
-              href="/bookings"
-              className="px-2 py-3 text-[15px] text-slate-300 font-medium border-b border-white/5 block hover:text-[var(--gold-400)]"
-            >
-              My Bookings
-            </Link>
+        <div className="md:hidden bg-[#050d1e]/98 border-t border-white/10 backdrop-blur-[24px] px-4 py-4 pb-6 space-y-3 shadow-2xl animate-in slide-in-from-top-2 duration-200">
+          {/* User Preview in Mobile */}
+          {isAuthenticated && (
+            <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08]">
+              <div className="w-[36px] h-[36px] rounded-full bg-gradient-to-br from-[#ffd700] to-[#f59e0b] flex items-center justify-center text-[14px] font-extrabold text-[#0f1c3f] shrink-0">
+                {user?.name?.charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-bold text-white truncate">{user?.name}</p>
+                <p className="text-[12px] text-slate-400 truncate">{user?.email}</p>
+              </div>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-yellow-400/10 text-[#ffd700] border border-yellow-400/20">
+                {user?.role || "Client"}
+              </span>
+            </div>
           )}
-          {isAdmin && (
+
+          {/* Navigation Links */}
+          <div className="space-y-1">
             <Link
-              href="/admin/dashboard"
-              className="px-2 py-3 text-[15px] text-slate-300 font-medium border-b border-white/5 block hover:text-[var(--gold-400)]"
+              href="/services"
+              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium transition-colors ${
+                isServicesActive
+                  ? "text-[#ffd700] bg-yellow-400/10 border border-yellow-400/20"
+                  : "text-slate-300 hover:text-white hover:bg-white/[0.04]"
+              }`}
             >
-              Admin Panel
+              <Sparkles size={17} className={isServicesActive ? "text-[#ffd700]" : "text-slate-400"} />
+              Browse Services
             </Link>
-          )}
-          <div className="h-[1px] bg-white/10 my-2" />
+
+            {isAuthenticated && !isAdmin && (
+              <>
+                <Link
+                  href="/dashboard"
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium transition-colors ${
+                    pathname === "/dashboard"
+                      ? "text-[#ffd700] bg-yellow-400/10 border border-yellow-400/20"
+                      : "text-slate-300 hover:text-white hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <User size={17} className={pathname === "/dashboard" ? "text-[#ffd700]" : "text-slate-400"} />
+                  My Dashboard
+                </Link>
+                <Link
+                  href="/bookings"
+                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium transition-colors ${
+                    isBookingsActive
+                      ? "text-[#ffd700] bg-yellow-400/10 border border-yellow-400/20"
+                      : "text-slate-300 hover:text-white hover:bg-white/[0.04]"
+                  }`}
+                >
+                  <Ticket size={17} className={isBookingsActive ? "text-[#ffd700]" : "text-slate-400"} />
+                  My Bookings
+                </Link>
+              </>
+            )}
+
+            {isAdmin && (
+              <Link
+                href="/admin/dashboard"
+                className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium text-yellow-400 bg-yellow-400/10 border border-yellow-400/20"
+              >
+                <ShieldCheck size={17} />
+                Admin Panel
+              </Link>
+            )}
+          </div>
+
+          <div className="h-[1px] bg-white/[0.08]" />
+
+          {/* Auth Action */}
           {isAuthenticated ? (
             <button
-              className="px-2 py-3 text-[15px] text-slate-300 font-medium border-b border-white/5 block hover:text-[var(--gold-400)] text-left w-full bg-transparent !text-red-500"
               onClick={logout}
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14px] font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors w-full text-left"
             >
+              <LogOut size={17} />
               Sign Out
             </button>
           ) : (
-            <>
+            <div className="flex flex-col gap-2 pt-1">
               <Link
                 href="/login"
-                className="px-2 py-3 text-[15px] text-slate-300 font-medium border-b border-white/5 block hover:text-[var(--gold-400)]"
+                className="w-full text-center py-2.5 rounded-xl text-[14px] font-medium text-white bg-white/[0.06] border border-white/10 hover:bg-white/[0.1] transition-colors"
               >
                 Sign In
               </Link>
               <Link
                 href="/register"
-                className="px-2 py-3 text-[15px] text-slate-300 font-medium border-b border-white/5 block hover:text-[var(--gold-400)] "
+                className="w-full text-center py-2.5 rounded-xl text-[14px] font-bold bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 shadow-[0_4px_16px_rgba(250,204,21,0.25)] hover:brightness-105 transition-all"
               >
                 Get Started
               </Link>
-            </>
+            </div>
           )}
         </div>
       )}
