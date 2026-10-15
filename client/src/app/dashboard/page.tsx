@@ -5,30 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, Search, ArrowRight, User } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { ProtectedRoute } from "@/components/auth/AuthGuards";
 
-export default function DashboardPage() {
-  const { user, isAuthenticated, isLoading, isAdmin } = useAuth();
-  const router = useRouter();
+function DashboardContent() {
+  const { user } = useAuth();
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) router.push("/login");
-    if (!isLoading && isAdmin) router.push("/admin/dashboard");
-  }, [isLoading, isAuthenticated, isAdmin, router]);
-
-  if (isLoading || !user) {
-    return (
-      <div
-        className="page-wrapper"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div className="spinner" />
-      </div>
-    );
-  }
+  if (!user) return null;
 
   return (
     <div className="min-h-screen overflow-hidden bg-[#050d1e] px-4 pb-20 pt-[100px] text-white sm:px-6">
@@ -145,5 +127,13 @@ export default function DashboardPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <ProtectedRoute>
+      <DashboardContent />
+    </ProtectedRoute>
   );
 }

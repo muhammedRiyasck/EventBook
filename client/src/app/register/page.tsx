@@ -16,10 +16,11 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
+import { GuestRoute } from "@/components/auth/AuthGuards";
 
 type Step = "details" | "otp";
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter();
   const { register, verifyOtp, resendOtp } = useAuth();
 
@@ -612,5 +613,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <GuestRoute>
+      <RegisterContent />
+    </GuestRoute>
   );
 }

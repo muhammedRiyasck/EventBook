@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, Lock, Eye, EyeOff, LogIn } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "@/context/AuthContext";
+import { GuestRoute } from "@/components/auth/AuthGuards";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,9 +56,21 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      await login(email, password);
+      const loggedUser = await login(email, password);
       toast.success("Welcome back!");
-      router.push("/dashboard");
+
+      const returnUrl = searchParams.get("returnUrl");
+      if (returnUrl && returnUrl.startsWith("/")) {
+        if (returnUrl.startsWith("/admin") && loggedUser.role !== "admin") {
+          router.push("/dashboard");
+        } else {
+          router.push(returnUrl);
+        }
+      } else if (loggedUser.role === "admin") {
+        router.push("/admin/dashboard");
+      } else {
+        router.push("/dashboard");
+      }
     } catch (err: unknown) {
       const error = err as { response?: { data?: { message?: string } } };
       toast.error(error?.response?.data?.message || "Login failed");
@@ -70,9 +84,7 @@ export default function LoginPage() {
       {/* Background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -right-40 -top-40 h-[520px] w-[520px] rounded-full bg-indigo-500/10 blur-[100px]" />
-
         <div className="absolute -bottom-40 -left-40 h-[480px] w-[480px] rounded-full bg-yellow-400/10 blur-[100px]" />
-
         <div className="absolute left-1/2 top-1/2 h-[700px] w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-900/10 blur-[100px]" />
       </div>
 
@@ -217,5 +229,15 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <GuestRoute>
+      <Suspense fallback={<div className="min-h-screen bg-[#050d1e]" />}>
+        <LoginForm />
+      </Suspense>
+    </GuestRoute>
   );
 }

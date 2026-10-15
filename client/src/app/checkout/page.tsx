@@ -76,16 +76,20 @@ function CheckoutPageContent() {
   );
 }
 
+import { ProtectedRoute } from "@/components/auth/AuthGuards";
+
 export default function CheckoutPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-[70vh] items-center justify-center">
-          <div className="spinner" />
-        </div>
-      }
-    >
-      <CheckoutPageContent />
-    </Suspense>
+    <ProtectedRoute>
+      <Suspense
+        fallback={
+          <div className="flex min-h-[70vh] items-center justify-center">
+            <div className="spinner" />
+          </div>
+        }
+      >
+        <CheckoutPageContent />
+      </Suspense>
+    </ProtectedRoute>
   );
 }

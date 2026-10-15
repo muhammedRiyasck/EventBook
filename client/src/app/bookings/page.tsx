@@ -9,10 +9,11 @@ import api from "@/lib/api";
 import { Booking, Service } from "@/types";
 import { useAuth } from "@/context/AuthContext";
 import CancelBookingModal from "@/components/CancelBookingModal";
+import { ProtectedRoute } from "@/components/auth/AuthGuards";
 
 type TabType = "all" | "upcoming" | "past";
 
-export default function BookingsPage() {
+function BookingsContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -21,10 +22,6 @@ export default function BookingsPage() {
   const [cancellingBooking, setCancellingBooking] = useState<Booking | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [retrying, setRetrying] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) router.push("/login");
-  }, [isLoading, isAuthenticated, router]);
 
   const fetchBookings = async (tab: TabType) => {
     setLoading(true);
@@ -457,5 +454,13 @@ export default function BookingsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <ProtectedRoute>
+      <BookingsContent />
+    </ProtectedRoute>
   );
 }
