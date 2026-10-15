@@ -53,7 +53,8 @@ export default function Navbar() {
   if (pathname?.startsWith("/admin")) return null;
 
   const isServicesActive = pathname?.startsWith("/services");
-  const isBookingsActive = pathname === "/bookings";
+  const isBookingsActive = pathname?.startsWith("/bookings");
+  const isDashboardActive = pathname === "/dashboard";
 
   return (
     <nav
@@ -92,17 +93,31 @@ export default function Navbar() {
           </Link>
 
           {isAuthenticated && !isAdmin && (
-            <Link
-              href="/bookings"
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-[13.5px] font-medium transition-all duration-200 ${
-                isBookingsActive
-                  ? "text-[#ffd700] bg-yellow-400/10 border border-yellow-400/25 shadow-[0_0_15px_rgba(250,204,21,0.08)]"
-                  : "text-slate-300 border border-transparent hover:text-white hover:bg-white/[0.06]"
-              }`}
-            >
-              <Ticket size={15} className={isBookingsActive ? "text-[#ffd700]" : "text-slate-400"} />
-              My Bookings
-            </Link>
+            <>
+              <Link
+                href="/dashboard"
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-[13.5px] font-medium transition-all duration-200 ${
+                  isDashboardActive
+                    ? "text-[#ffd700] bg-yellow-400/10 border border-yellow-400/25 shadow-[0_0_15px_rgba(250,204,21,0.08)]"
+                    : "text-slate-300 border border-transparent hover:text-white hover:bg-white/[0.06]"
+                }`}
+              >
+                <LayoutDashboard size={15} className={isDashboardActive ? "text-[#ffd700]" : "text-slate-400"} />
+                Dashboard
+              </Link>
+
+              <Link
+                href="/bookings"
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-[13.5px] font-medium transition-all duration-200 ${
+                  isBookingsActive
+                    ? "text-[#ffd700] bg-yellow-400/10 border border-yellow-400/25 shadow-[0_0_15px_rgba(250,204,21,0.08)]"
+                    : "text-slate-300 border border-transparent hover:text-white hover:bg-white/[0.06]"
+                }`}
+              >
+                <Ticket size={15} className={isBookingsActive ? "text-[#ffd700]" : "text-slate-400"} />
+                My Bookings
+              </Link>
+            </>
           )}
 
           {isAdmin && (
@@ -186,6 +201,13 @@ export default function Navbar() {
                           <Settings size={16} className="text-yellow-400" />
                           Manage Services
                         </Link>
+                        <Link
+                          href="/admin/bookings"
+                          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+                        >
+                          <CalendarDays size={16} className="text-yellow-400" />
+                          Customer Bookings
+                        </Link>
                       </>
                     ) : (
                       <>
@@ -193,15 +215,22 @@ export default function Navbar() {
                           href="/dashboard"
                           className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
                         >
-                          <User size={16} className="text-yellow-400" />
-                          My Profile & Stats
+                          <LayoutDashboard size={16} className="text-yellow-400" />
+                          Dashboard
                         </Link>
                         <Link
                           href="/bookings"
                           className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
                         >
-                          <CalendarDays size={16} className="text-yellow-400" />
+                          <Ticket size={16} className="text-yellow-400" />
                           My Bookings
+                        </Link>
+                        <Link
+                          href="/services"
+                          className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-[13.5px] text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+                        >
+                          <Sparkles size={16} className="text-yellow-400" />
+                          Explore Services
                         </Link>
                       </>
                     )}
@@ -280,7 +309,7 @@ export default function Navbar() {
               }`}
             >
               <Sparkles size={17} className={isServicesActive ? "text-[#ffd700]" : "text-slate-400"} />
-              Browse Services
+              Explore Services
             </Link>
 
             {isAuthenticated && !isAdmin && (
@@ -288,13 +317,13 @@ export default function Navbar() {
                 <Link
                   href="/dashboard"
                   className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium transition-colors ${
-                    pathname === "/dashboard"
+                    isDashboardActive
                       ? "text-[#ffd700] bg-yellow-400/10 border border-yellow-400/20"
                       : "text-slate-300 hover:text-white hover:bg-white/[0.04]"
                   }`}
                 >
-                  <User size={17} className={pathname === "/dashboard" ? "text-[#ffd700]" : "text-slate-400"} />
-                  My Dashboard
+                  <LayoutDashboard size={17} className={isDashboardActive ? "text-[#ffd700]" : "text-slate-400"} />
+                  Dashboard
                 </Link>
                 <Link
                   href="/bookings"
@@ -311,13 +340,29 @@ export default function Navbar() {
             )}
 
             {isAdmin && (
-              <Link
-                href="/admin/dashboard"
-                className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium text-yellow-400 bg-yellow-400/10 border border-yellow-400/20"
-              >
-                <ShieldCheck size={17} />
-                Admin Panel
-              </Link>
+              <>
+                <Link
+                  href="/admin/dashboard"
+                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium text-yellow-400 bg-yellow-400/10 border border-yellow-400/20"
+                >
+                  <ShieldCheck size={17} />
+                  Admin Panel
+                </Link>
+                <Link
+                  href="/admin/services"
+                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium text-slate-300 hover:text-white hover:bg-white/[0.04]"
+                >
+                  <Settings size={17} className="text-yellow-400" />
+                  Manage Services
+                </Link>
+                <Link
+                  href="/admin/bookings"
+                  className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-[14.5px] font-medium text-slate-300 hover:text-white hover:bg-white/[0.04]"
+                >
+                  <CalendarDays size={17} className="text-yellow-400" />
+                  Customer Bookings
+                </Link>
+              </>
             )}
           </div>
 

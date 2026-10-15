@@ -14,6 +14,7 @@ import {
   X,
   ShieldCheck,
   ChevronDown,
+  Globe,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -458,6 +459,34 @@ export default function AdminNavbar() {
 
                   <div style={{ height: "1px", background: "rgba(255,255,255,0.07)" }} />
 
+                  <Link
+                    href="/services"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      padding: "10px 16px",
+                      fontSize: "13px",
+                      color: "#94a3b8",
+                      textDecoration: "none",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.background =
+                        "rgba(255,255,255,0.04)";
+                      (e.currentTarget as HTMLAnchorElement).style.color = "#ffd700";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.background = "transparent";
+                      (e.currentTarget as HTMLAnchorElement).style.color = "#94a3b8";
+                    }}
+                  >
+                    <Globe size={14} />
+                    View Live Site
+                  </Link>
+
+                  <div style={{ height: "1px", background: "rgba(255,255,255,0.07)" }} />
+
                   <button
                     onClick={logout}
                     style={{
@@ -589,6 +618,31 @@ export default function AdminNavbar() {
                 );
               })}
             </div>
+
+            <div
+              style={{
+                height: "1px",
+                background: "rgba(255,255,255,0.07)",
+                margin: "12px 0",
+              }}
+            />
+
+            <Link
+              href="/services"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "11px 14px",
+                borderRadius: "9px",
+                fontSize: "14px",
+                color: "#94a3b8",
+                textDecoration: "none",
+              }}
+            >
+              <Globe size={16} />
+              View Live Site
+            </Link>
 
             <div
               style={{
