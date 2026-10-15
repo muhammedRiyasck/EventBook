@@ -29,6 +29,12 @@ export const createBooking = async (
       return;
     }
 
+    // Admins cannot create customer bookings
+    if (req.user?.role === 'admin') {
+      res.status(403).json({ success: false, message: 'Administrators cannot book services' });
+      return;
+    }
+
     const { serviceId, startDate, endDate, notes, guestCount, timeSlotId } = req.body;
 
     const service = await Service.findById(serviceId);
