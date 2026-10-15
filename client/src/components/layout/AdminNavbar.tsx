@@ -58,7 +58,7 @@ export default function AdminNavbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   // Only show on admin routes
-  const isAdminRoute = pathname.startsWith("/admin");
+  const isAdminRoute = Boolean(pathname?.startsWith("/admin"));
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
