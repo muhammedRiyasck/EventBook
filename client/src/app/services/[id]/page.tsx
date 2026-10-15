@@ -245,10 +245,17 @@ export default function ServiceDetailPage() {
       const effectiveEnd =
         bookingMode === "date_range" ? endDate : startDate;
 
+      // Use local YYYY-MM-DD strings to avoid UTC shift pushing the date
+      // back to "yesterday" in timezones ahead of UTC (e.g., IST +05:30).
+      const toLocalDateStr = (d: Date) => {
+        const offset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - offset).toISOString().split('T')[0];
+      };
+
       const response = await api.post("/bookings", {
         serviceId: id,
-        startDate: startDate.toISOString(),
-        endDate: (effectiveEnd ?? startDate).toISOString(),
+        startDate: toLocalDateStr(startDate),
+        endDate: toLocalDateStr(effectiveEnd ?? startDate),
         notes,
         ...(selectedSlotId && { timeSlotId: selectedSlotId }),
         ...(guestCount && { guestCount: Number(guestCount) }),
