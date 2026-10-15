@@ -60,6 +60,21 @@ export default function BookingsPage() {
     setRetrying(bookingId);
     try {
       const { data } = await api.post(`/bookings/${bookingId}/retry-payment`);
+
+      // Booking was confirmed server-side (webhook missed but payment succeeded)
+      if (data.alreadyConfirmed) {
+        toast.success(data.message || "Booking confirmed! Your payment was already processed.");
+        fetchBookings(activeTab);
+        return;
+      }
+
+      // Payment still processing — webhook should confirm it shortly
+      if (data.processing) {
+        toast.success(data.message || "Payment is being processed. Check back shortly.");
+        fetchBookings(activeTab);
+        return;
+      }
+
       if (!data.clientSecret) throw new Error("Payment session was not created");
 
       router.push(

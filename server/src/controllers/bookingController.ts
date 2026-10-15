@@ -475,10 +475,61 @@ export const retryPayment = async (
     if (booking.pendingStripePaymentIntentId) {
       const existingIntent = await stripe.paymentIntents.retrieve(booking.pendingStripePaymentIntentId);
 
-      if (existingIntent.status === 'succeeded' || existingIntent.status === 'processing') {
-        res.status(409).json({
-          success: false,
-          message: 'Payment is already being verified. Please wait for booking confirmation.',
+      // The PaymentIntent already succeeded but the webhook never updated the
+      // booking (e.g. webhook delivery failure or server crash). Stripe has
+      // already collected the money — confirm the booking now using the same
+      // atomic update the webhook would have applied. The findOneAndUpdate
+      // filter ensures this is idempotent if the webhook also arrives later.
+      if (existingIntent.status === 'succeeded') {
+        const confirmedBooking = await Booking.findOneAndUpdate(
+          { _id: booking._id, paymentStatus: 'unpaid', status: 'pending' },
+          {
+            $set: {
+              paymentStatus: 'paid',
+              status: 'confirmed',
+              stripePaymentIntentId: existingIntent.id,
+            },
+            $unset: { pendingStripePaymentIntentId: 1 },
+          },
+          { new: true }
+        )
+          .populate('user', 'name email')
+          .populate('service', 'title');
+
+        if (confirmedBooking) {
+          appEvents.emit('booking.created', {
+            userName: (confirmedBooking.user as unknown as { name?: string })?.name || 'Customer',
+            userEmail: (confirmedBooking.user as unknown as { email?: string })?.email || 'customer@example.com',
+            serviceName: (confirmedBooking.service as unknown as { title?: string })?.title || 'Service',
+            startDate: confirmedBooking.startDate.toLocaleDateString('en-IN'),
+            endDate: confirmedBooking.endDate.toLocaleDateString('en-IN'),
+            totalDays: confirmedBooking.totalDays,
+            totalPrice: confirmedBooking.totalPrice,
+            bookingId: confirmedBooking._id.toString(),
+            ...(confirmedBooking.timeSlotId && {
+              timeSlot: `${confirmedBooking.startTime} – ${confirmedBooking.endTime}`,
+            }),
+            ...(confirmedBooking.guestCount && { guestCount: confirmedBooking.guestCount }),
+          });
+        }
+
+        res.status(200).json({
+          success: true,
+          message: 'Your payment was already processed. Booking is now confirmed.',
+          data: confirmedBooking ?? booking,
+          alreadyConfirmed: true,
+        });
+        return;
+      }
+
+      // Still processing — Stripe hasn't settled yet; webhook should fire
+      // shortly. Nothing for us to do — just tell the user to wait.
+      if (existingIntent.status === 'processing') {
+        res.status(202).json({
+          success: true,
+          message: 'Your payment is being processed. Booking confirmation will follow shortly.',
+          data: booking,
+          processing: true,
         });
         return;
       }
