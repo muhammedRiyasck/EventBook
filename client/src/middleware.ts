@@ -57,6 +57,24 @@ export function middleware(request: NextRequest) {
     if (role === "admin") {
       return NextResponse.redirect(new URL("/admin/dashboard", request.url));
     }
+
+    const normalizedPath = pathname.replace(/\/$/, "");
+    if (normalizedPath === "/checkout") {
+      const clientSecret = request.nextUrl.searchParams.get("clientSecret");
+      const bookingId = request.nextUrl.searchParams.get("bookingId");
+      if (!clientSecret || !bookingId) {
+        return NextResponse.redirect(new URL("/bookings", request.url));
+      }
+    } else if (
+      normalizedPath === "/checkout/success" ||
+      normalizedPath === "/checkout/cancel"
+    ) {
+      const bookingId = request.nextUrl.searchParams.get("bookingId");
+      if (!bookingId) {
+        return NextResponse.redirect(new URL("/bookings", request.url));
+      }
+    }
+
     return NextResponse.next();
   }
 
@@ -76,9 +94,13 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/admin",
     "/admin/:path*",
+    "/dashboard",
     "/dashboard/:path*",
+    "/bookings",
     "/bookings/:path*",
+    "/checkout",
     "/checkout/:path*",
     "/login",
     "/register",

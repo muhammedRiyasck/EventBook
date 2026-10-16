@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   PaymentElement,
@@ -52,7 +53,7 @@ export default function CheckoutForm({ bookingId }: Props) {
       // Only Stripe's signed webhook can mark a booking as paid and confirmed.
       // The booking remains pending until that server-to-server confirmation arrives.
       toast.success("🎉 Payment received. Confirming your booking...");
-      router.push("/checkout/success");
+      router.push(`/checkout/success?bookingId=${encodeURIComponent(bookingId)}`);
     }
   };
 
@@ -120,6 +121,16 @@ export default function CheckoutForm({ bookingId }: Props) {
                 </>
               )}
             </button>
+
+            {/* Cancel payment link */}
+            <div className="pt-1 text-center">
+              <Link
+                href={`/checkout/cancel?bookingId=${encodeURIComponent(bookingId)}`}
+                className="text-xs font-medium text-slate-400 transition hover:text-red-400"
+              >
+                Cancel payment and return to bookings
+              </Link>
+            </div>
           </form>
         </div>
 
