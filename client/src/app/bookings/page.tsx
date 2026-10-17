@@ -11,7 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import CancelBookingModal from "@/components/CancelBookingModal";
 import { ProtectedRoute } from "@/components/auth/AuthGuards";
 
-type TabType = "all" | "upcoming" | "past";
+type TabType = "all" | "upcoming" | "past" | "cancelled";
 
 function BookingsContent() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -151,7 +151,7 @@ function BookingsContent() {
           TABS
       ========================================================= */}
         <div className="mb-7 inline-flex max-w-full overflow-x-auto rounded-xl border border-white/[0.08] bg-white/[0.035] p-1 backdrop-blur-xl">
-          {(["all", "upcoming", "past"] as TabType[]).map((tab) => {
+          {(["all", "upcoming", "past", "cancelled"] as TabType[]).map((tab) => {
             const isActive = activeTab === tab;
 
             return (
@@ -204,7 +204,9 @@ function BookingsContent() {
                   ? "You have no upcoming bookings."
                   : activeTab === "past"
                     ? "No past bookings found."
-                    : "You haven't made any bookings yet. Find a service and start planning your event."}
+                    : activeTab === "cancelled"
+                      ? "You have no cancelled bookings."
+                      : "You haven't made any bookings yet. Find a service and start planning your event."}
               </p>
 
               <Link
@@ -221,7 +223,7 @@ function BookingsContent() {
         ========================================================= */
           <div className="space-y-4">
             {bookings.map((booking) => {
-              const svc = booking.service as Service;
+              const svc = booking.service as Service | undefined;
 
               const isActive =
                 booking.status === "confirmed" || booking.status === "pending";
@@ -245,15 +247,15 @@ function BookingsContent() {
 
                         <div className="min-w-0">
                           <h3 className="truncate text-base font-bold text-white sm:text-lg">
-                            {typeof svc === "object" ? svc.title : "Service"}
+                            {svc && typeof svc === "object" ? svc.title : "Service"}
                           </h3>
 
-                          {typeof svc === "object" && (
+                          {svc && typeof svc === "object" && (
                             <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
                               <MapPin size={13} className="shrink-0" />
 
                               <span className="truncate">
-                                {svc.location?.city}, {svc.location?.state}
+                                {svc.location?.city ? `${svc.location.city}, ${svc.location?.state}` : "Service Location"}
                               </span>
                             </div>
                           )}
@@ -354,15 +356,87 @@ function BookingsContent() {
                       <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold capitalize ${
                         booking.paymentStatus === "paid"
                           ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
-                          : "border-orange-400/20 bg-orange-400/10 text-orange-400"
+                          : booking.paymentStatus === "refunded"
+                            ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-400"
+                            : booking.paymentStatus === "partially_refunded"
+                              ? "border-amber-400/20 bg-amber-400/10 text-amber-400"
+                              : "border-orange-400/20 bg-orange-400/10 text-orange-400"
                       }`}>
                         <span className={`h-1.5 w-1.5 rounded-full ${
-                          booking.paymentStatus === "paid" ? "bg-emerald-400" : "bg-orange-400"
+                          booking.paymentStatus === "paid"
+                            ? "bg-emerald-400"
+                            : booking.paymentStatus === "refunded"
+                              ? "bg-cyan-400"
+                              : booking.paymentStatus === "partially_refunded"
+                                ? "bg-amber-400"
+                                : "bg-orange-400"
                         }`} />
-                        {booking.paymentStatus === "paid" ? "Paid" : "Payment Pending"}
+                        {booking.paymentStatus === "paid"
+                          ? "Paid"
+                          : booking.paymentStatus === "refunded"
+                            ? "Refunded"
+                            : booking.paymentStatus === "partially_refunded"
+                              ? "Partially Refunded"
+                              : "Payment Pending"}
                       </span>
                     </div>
                   </div>
+
+                  {/* =================================================
+                    REFUND DETAILS (If Refunded or Cancelled with refund)
+                  ================================================= */}
+                  {((booking.refundAmount && booking.refundAmount > 0) ||
+                    booking.paymentStatus === "refunded" ||
+                    booking.paymentStatus === "partially_refunded") && (
+                    <div className="mt-3 overflow-hidden rounded-xl border border-cyan-400/20 bg-cyan-400/[0.04] p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-cyan-400/25 bg-cyan-400/10 text-cyan-400">
+                            <IndianRupee size={15} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">
+                                Refund Details
+                              </span>
+                              <span className="rounded-md border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase text-cyan-400">
+                                {booking.paymentStatus === "refunded"
+                                  ? "100% Full Refund"
+                                  : "Partial Refund"}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-xs text-slate-400">
+                              {booking.refundedAt
+                                ? `Processed on ${formatDate(booking.refundedAt)}`
+                                : "Processed to original payment method"}
+                              {booking.refundStatus && booking.refundStatus !== "none" && (
+                                <span className="ml-1.5 capitalize text-slate-400">
+                                  · Status: <span className="font-medium text-slate-300">{booking.refundStatus}</span>
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        {booking.refundAmount ? (
+                          <div className="text-left sm:text-right">
+                            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                              Amount Refunded
+                            </p>
+                            <p className="text-lg font-black text-cyan-400">
+                              ₹{new Intl.NumberFormat("en-IN").format(booking.refundAmount)}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {booking.refundReason && (
+                        <p className="mt-2.5 border-t border-cyan-400/10 pt-2 text-xs text-slate-400">
+                          <span className="font-semibold text-slate-300">Note:</span> {booking.refundReason}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {/* =================================================
                     NOTES
@@ -398,6 +472,15 @@ function BookingsContent() {
                           )}
                         </span>
                       </div>
+
+                      {booking.refundAmount && booking.refundAmount > 0 ? (
+                        <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-cyan-400">
+                          <span>Refunded:</span>
+                          <span>
+                            ₹{new Intl.NumberFormat("en-IN").format(booking.refundAmount)}
+                          </span>
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">

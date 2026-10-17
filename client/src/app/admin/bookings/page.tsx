@@ -282,12 +282,12 @@ export default function AdminBookingsPage() {
                         {/* Service */}
                         <td className="px-4 py-5 align-top">
                           <p className="line-clamp-2 text-[13px] font-semibold leading-5 text-slate-200">
-                            {typeof svc === "object"
+                            {svc && typeof svc === "object"
                               ? svc.title
                               : "Service"}
                           </p>
 
-                          {typeof svc === "object" && (
+                          {svc && typeof svc === "object" && (
                             <p className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                               <MapPin size={12} className="shrink-0" />
                               <span className="truncate">
@@ -347,6 +347,12 @@ export default function AdminBookingsPage() {
                             />
                             {booking.status}
                           </span>
+
+                          {booking.refundAmount && booking.refundAmount > 0 ? (
+                            <p className="mt-1.5 text-[10px] font-semibold text-cyan-400">
+                              Refunded: ₹{new Intl.NumberFormat("en-IN").format(booking.refundAmount)}
+                            </p>
+                          ) : null}
                         </td>
 
                         {/* Actions: buttons belong here */}
@@ -479,12 +485,12 @@ export default function AdminBookingsPage() {
                       </p>
 
                       <p className="text-sm font-semibold text-white">
-                        {typeof svc === "object"
+                        {svc && typeof svc === "object"
                           ? svc.title
                           : "Service"}
                       </p>
 
-                      {typeof svc === "object" && (
+                      {svc && typeof svc === "object" && (
                         <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
                           <MapPin size={12} />
                           {svc.location?.city}
@@ -515,7 +521,14 @@ export default function AdminBookingsPage() {
 
                     {/* Total */}
                     <div className="flex items-center justify-between border-t border-white/[0.06] pt-3">
-                      <p className="text-xs text-slate-500">Total amount</p>
+                      <div>
+                        <p className="text-xs text-slate-500">Total amount</p>
+                        {booking.refundAmount && booking.refundAmount > 0 ? (
+                          <p className="text-[11px] font-semibold text-cyan-400">
+                            Refunded: ₹{new Intl.NumberFormat("en-IN").format(booking.refundAmount)}
+                          </p>
+                        ) : null}
+                      </div>
 
                       <p className="flex items-center gap-0.5 text-base font-extrabold text-yellow-400">
                         <IndianRupee size={14} />

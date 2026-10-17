@@ -378,13 +378,31 @@ export const getMyBookings = async (
     const { status, type } = req.query as { status?: string; type?: string };
     const query: Record<string, unknown> = { user: req.user!._id };
 
-    if (status) query.status = status;
+    if (status) {
+      query.status = status;
+    }
 
-    // Filter upcoming vs past
-    if (type === 'upcoming') {
-      query.startDate = { $gte: new Date() };
+    // Filter by tab type:
+    //  - 'cancelled': all cancelled bookings
+    //  - 'upcoming': active upcoming bookings (endDate >= today midnight, not cancelled)
+    //  - 'past': finished bookings (endDate < today midnight, not cancelled)
+    //  - 'all' or empty: all bookings for this user
+    if (type === 'cancelled') {
+      query.status = 'cancelled';
+    } else if (type === 'upcoming') {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      query.endDate = { $gte: todayStart };
+      if (!status) {
+        query.status = { $in: ['confirmed', 'pending'] };
+      }
     } else if (type === 'past') {
-      query.startDate = { $lt: new Date() };
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      query.endDate = { $lt: todayStart };
+      if (!status) {
+        query.status = { $ne: 'cancelled' };
+      }
     }
 
     const bookings = await Booking.find(query)
