@@ -102,7 +102,10 @@ const BOOKING_MODE_MAP: Record<
   },
 };
 
-const CANCELLATION_BADGE: Record<string, { label: string; badgeClass: string }> = {
+const CANCELLATION_BADGE: Record<
+  string,
+  { label: string; badgeClass: string }
+> = {
   Flexible: {
     label: "Flexible",
     badgeClass: "bg-emerald-400/10 text-emerald-400 border-emerald-400/25",
@@ -131,6 +134,12 @@ export default function AdminServicesPage() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const limit = 15;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+
   // Filters & Controls
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -151,21 +160,39 @@ export default function AdminServicesPage() {
     if (!isLoading && isAuthenticated && !isAdmin) router.push("/dashboard");
   }, [isLoading, isAuthenticated, isAdmin, router]);
 
-  const fetchServices = async () => {
+  const fetchServices = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get("/services?limit=50");
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+        includeInactive: "true",
+        sort: sortBy,
+      });
+      if (searchTerm.trim()) params.set("search", searchTerm.trim());
+      if (selectedCategory !== "all") params.set("category", selectedCategory);
+      if (selectedMode !== "all") params.set("bookingMode", selectedMode);
+
+      const { data } = await api.get(`/services?${params.toString()}`);
       setServices(data.data || []);
+      setTotalPages(data.pagination?.totalPages || 1);
+      setTotalItems(data.pagination?.totalItems || 0);
     } catch {
       toast.error("Failed to load services");
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, limit, sortBy, selectedCategory, selectedMode, searchTerm]);
 
+  // Debounce search and filter queries
   useEffect(() => {
-    if (isAdmin) fetchServices();
-  }, [isAdmin]);
+    const timer = setTimeout(() => {
+      if (isAdmin) {
+        fetchServices();
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [isAdmin, fetchServices]);
 
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`Remove "${title}"? This will hide it from users.`)) return;
@@ -173,7 +200,7 @@ export default function AdminServicesPage() {
     try {
       await api.delete(`/services/${id}`);
       toast.success("Service removed successfully");
-      setServices((prev) => prev.filter((s) => s._id !== id));
+      fetchServices();
     } catch {
       toast.error("Delete failed");
     } finally {
@@ -228,53 +255,28 @@ export default function AdminServicesPage() {
 
   // Metrics Calculation
   const metrics = useMemo(() => {
-    const total = services.length;
+    const total = totalItems || services.length;
     const active = services.filter((s) => s.isActive !== false).length;
-    const totalRate = services.reduce((acc, s) => acc + (s.pricePerDay || 0), 0);
-    const avgRate = total > 0 ? Math.round(totalRate / total) : 0;
+    const totalRate = services.reduce(
+      (acc, s) => acc + (s.pricePerDay || 0),
+      0,
+    );
+    const avgRate =
+      services.length > 0 ? Math.round(totalRate / services.length) : 0;
     const uniqueCategories = new Set(services.map((s) => s.category)).size;
 
     return { total, active, avgRate, uniqueCategories };
-  }, [services]);
+  }, [services, totalItems]);
 
-  // Filtered & Sorted Services
-  const filteredServices = useMemo(() => {
-    return services
-      .filter((svc) => {
-        const matchesCategory =
-          selectedCategory === "all" || svc.category === selectedCategory;
-        const matchesMode =
-          selectedMode === "all" || (svc.bookingMode || "date_range") === selectedMode;
-
-        const term = searchTerm.trim().toLowerCase();
-        const matchesSearch =
-          !term ||
-          svc.title?.toLowerCase().includes(term) ||
-          svc.description?.toLowerCase().includes(term) ||
-          svc.location?.city?.toLowerCase().includes(term) ||
-          svc.location?.state?.toLowerCase().includes(term) ||
-          svc.category?.toLowerCase().includes(term) ||
-          svc.tags?.some((t) => t.toLowerCase().includes(term)) ||
-          svc.amenities?.some((a) => a.toLowerCase().includes(term));
-
-        return matchesCategory && matchesMode && matchesSearch;
-      })
-      .sort((a, b) => {
-        if (sortBy === "price_asc") return a.pricePerDay - b.pricePerDay;
-        if (sortBy === "price_desc") return b.pricePerDay - a.pricePerDay;
-        if (sortBy === "rating_desc") return (b.rating || 0) - (a.rating || 0);
-        if (sortBy === "title") return a.title.localeCompare(b.title);
-        if (sortBy === "oldest")
-          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      });
-  }, [services, searchTerm, selectedCategory, selectedMode, sortBy]);
+  // Server-paginated Services
+  const filteredServices = services;
 
   const clearFilters = () => {
     setSearchTerm("");
     setSelectedCategory("all");
     setSelectedMode("all");
     setSortBy("newest");
+    setPage(1);
   };
 
   const hasActiveFilters =
@@ -316,7 +318,9 @@ export default function AdminServicesPage() {
                 <Sparkles size={11} /> Admin Hub
               </span>
               <span className="text-xs text-slate-500">•</span>
-              <span className="text-xs text-slate-400">Inventory & Catalog</span>
+              <span className="text-xs text-slate-400">
+                Inventory & Catalog
+              </span>
             </div>
 
             <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
@@ -324,7 +328,8 @@ export default function AdminServicesPage() {
             </h1>
 
             <p className="mt-1.5 text-sm text-slate-400">
-              Supercharge your offerings with real-time slot control, rate policies, and rich metadata
+              Supercharge your offerings with real-time slot control, rate
+              policies, and rich metadata
             </p>
           </div>
 
@@ -440,13 +445,19 @@ export default function AdminServicesPage() {
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(1);
+                }}
                 placeholder="Search by title, location, tag, amenity..."
                 className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-10 pr-9 text-sm text-white placeholder-slate-500 transition-all focus:border-yellow-400/40 focus:bg-white/[0.07] focus:outline-none"
               />
               {searchTerm && (
                 <button
-                  onClick={() => setSearchTerm("")}
+                  onClick={() => {
+                    setSearchTerm("");
+                    setPage(1);
+                  }}
                   className="absolute cursor-pointer right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
                 >
                   <X size={15} />
@@ -460,7 +471,10 @@ export default function AdminServicesPage() {
               <div className="relative">
                 <select
                   value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedCategory(e.target.value);
+                    setPage(1);
+                  }}
                   className="h-11 rounded-xl cursor-pointer border border-white/10 bg-[#071329] px-3.5 py-2 text-xs font-semibold text-slate-200 transition-all hover:border-white/20 focus:border-yellow-400/40 focus:outline-none"
                 >
                   <option value="all">All Categories</option>
@@ -478,7 +492,10 @@ export default function AdminServicesPage() {
               <div className="relative">
                 <select
                   value={selectedMode}
-                  onChange={(e) => setSelectedMode(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedMode(e.target.value);
+                    setPage(1);
+                  }}
                   className="h-11 rounded-xl cursor-pointer border border-white/10 bg-[#071329] px-3.5 py-2 text-xs font-semibold text-slate-200 transition-all hover:border-white/20 focus:border-yellow-400/40 focus:outline-none"
                 >
                   <option value="all">All Booking Modes</option>
@@ -492,7 +509,10 @@ export default function AdminServicesPage() {
               <div className="relative">
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  onChange={(e) => {
+                    setSortBy(e.target.value as typeof sortBy);
+                    setPage(1);
+                  }}
                   className="h-11 rounded-xl border cursor-pointer border-white/10 bg-[#071329] px-3.5 py-2 text-xs font-semibold text-slate-200 transition-all hover:border-white/20 focus:border-yellow-400/40 focus:outline-none"
                 >
                   <option value="newest">Newest First</option>
@@ -605,7 +625,9 @@ export default function AdminServicesPage() {
               🏛️
             </div>
             <h3 className="text-xl font-bold text-white">
-              {services.length === 0 ? "No services yet" : "No matching services"}
+              {services.length === 0
+                ? "No services yet"
+                : "No matching services"}
             </h3>
             <p className="mt-2 max-w-md text-sm text-slate-400">
               {services.length === 0
@@ -679,8 +701,9 @@ export default function AdminServicesPage() {
                       BOOKING_MODE_MAP[svc.bookingMode || "date_range"] ||
                       BOOKING_MODE_MAP.date_range;
                     const cancelPolicy =
-                      CANCELLATION_BADGE[svc.cancellationPolicy || "Flexible"] ||
-                      CANCELLATION_BADGE.Flexible;
+                      CANCELLATION_BADGE[
+                        svc.cancellationPolicy || "Flexible"
+                      ] || CANCELLATION_BADGE.Flexible;
                     const primaryImage = svc.images?.[0];
                     const unitLabel =
                       PRICING_UNIT_LABEL[svc.pricingUnit || "per_day"] ||
@@ -816,7 +839,10 @@ export default function AdminServicesPage() {
                           {/* COLUMN 4: Location & Contact */}
                           <div className="space-y-1 px-4 py-4 text-xs text-slate-300">
                             <div className="flex items-center gap-1.5 font-medium text-white">
-                              <MapPin size={13} className="shrink-0 text-yellow-400" />
+                              <MapPin
+                                size={13}
+                                className="shrink-0 text-yellow-400"
+                              />
                               <span className="truncate">
                                 {svc.location.city}
                                 {svc.location.state
@@ -863,7 +889,9 @@ export default function AdminServicesPage() {
                                 </a>
                               )}
                               <span className="truncate text-[10px] text-slate-500 max-w-[130px]">
-                                {svc.contact?.phone || svc.contact?.email || "No contact"}
+                                {svc.contact?.phone ||
+                                  svc.contact?.email ||
+                                  "No contact"}
                               </span>
                             </div>
                           </div>
@@ -873,7 +901,10 @@ export default function AdminServicesPage() {
                             {svc.availableFrom || svc.availableTo ? (
                               <div className="space-y-0.5">
                                 <div className="flex items-center gap-1 text-[11px] font-medium text-slate-300">
-                                  <Calendar size={12} className="text-slate-400" />
+                                  <Calendar
+                                    size={12}
+                                    className="text-slate-400"
+                                  />
                                   <span>
                                     {formatDate(svc.availableFrom) || "Start"}
                                   </span>
@@ -888,15 +919,16 @@ export default function AdminServicesPage() {
                               </span>
                             )}
 
-                            {svc.availability && svc.availability.length > 0 && (
-                              <div className="text-[10px] text-slate-400">
-                                {
-                                  svc.availability.filter((a) => a.isBooked)
-                                    .length
-                                }{" "}
-                                booked blocks
-                              </div>
-                            )}
+                            {svc.availability &&
+                              svc.availability.length > 0 && (
+                                <div className="text-[10px] text-slate-400">
+                                  {
+                                    svc.availability.filter((a) => a.isBooked)
+                                      .length
+                                  }{" "}
+                                  booked blocks
+                                </div>
+                              )}
                           </div>
 
                           {/* COLUMN 6: Rating & Status */}
@@ -904,7 +936,9 @@ export default function AdminServicesPage() {
                             <div className="flex items-center gap-1.5">
                               <div className="flex items-center gap-1 rounded-md border border-yellow-400/20 bg-yellow-400/10 px-2 py-0.5 text-xs font-bold text-yellow-400">
                                 <Star size={12} className="fill-yellow-400" />
-                                <span>{svc.rating ? svc.rating.toFixed(1) : "5.0"}</span>
+                                <span>
+                                  {svc.rating ? svc.rating.toFixed(1) : "5.0"}
+                                </span>
                               </div>
                               <span className="text-[10px] text-slate-400">
                                 ({svc.totalReviews || 0})
@@ -1002,7 +1036,8 @@ export default function AdminServicesPage() {
                                 {svc.amenities && svc.amenities.length > 0 && (
                                   <div>
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                                      Included Amenities ({svc.amenities.length})
+                                      Included Amenities ({svc.amenities.length}
+                                      )
                                     </h4>
                                     <div className="mt-2 flex flex-wrap gap-2">
                                       {svc.amenities.map((amenity, idx) => (
@@ -1025,8 +1060,8 @@ export default function AdminServicesPage() {
                                 {svc.timeSlots && svc.timeSlots.length > 0 && (
                                   <div>
                                     <h4 className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-purple-400">
-                                      <Clock size={13} /> Configured Time Slots (
-                                      {svc.timeSlots.length})
+                                      <Clock size={13} /> Configured Time Slots
+                                      ({svc.timeSlots.length})
                                     </h4>
                                     <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                                       {svc.timeSlots.map((slot) => (
@@ -1055,7 +1090,8 @@ export default function AdminServicesPage() {
                                 {svc.images && svc.images.length > 0 && (
                                   <div>
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                                      Service Gallery ({svc.images.length} images)
+                                      Service Gallery ({svc.images.length}{" "}
+                                      images)
                                     </h4>
                                     <div className="mt-2 flex flex-wrap gap-3">
                                       {svc.images.map((imgUrl, i) => (
@@ -1091,31 +1127,42 @@ export default function AdminServicesPage() {
                                     />
                                     <div>
                                       <div className="font-semibold text-white">
-                                        {svc.location.city}, {svc.location.state}
+                                        {svc.location.city},{" "}
+                                        {svc.location.state}
                                       </div>
                                       <div className="text-slate-400">
-                                        {svc.location.address || "Address not specified"}
+                                        {svc.location.address ||
+                                          "Address not specified"}
                                       </div>
                                     </div>
                                   </div>
 
                                   {svc.contact?.phone && (
                                     <div className="flex items-center gap-2">
-                                      <Phone size={13} className="text-slate-400" />
+                                      <Phone
+                                        size={13}
+                                        className="text-slate-400"
+                                      />
                                       <span>{svc.contact.phone}</span>
                                     </div>
                                   )}
 
                                   {svc.contact?.email && (
                                     <div className="flex items-center gap-2">
-                                      <Mail size={13} className="text-slate-400" />
+                                      <Mail
+                                        size={13}
+                                        className="text-slate-400"
+                                      />
                                       <span>{svc.contact.email}</span>
                                     </div>
                                   )}
 
                                   {svc.contact?.website && (
                                     <div className="flex items-center gap-2">
-                                      <Globe size={13} className="text-slate-400" />
+                                      <Globe
+                                        size={13}
+                                        className="text-slate-400"
+                                      />
                                       <a
                                         href={svc.contact.website}
                                         target="_blank"
@@ -1130,7 +1177,10 @@ export default function AdminServicesPage() {
 
                                 <div className="space-y-1 border-t border-white/[0.08] pt-3 text-[11px] text-slate-400">
                                   <div>
-                                    ID: <span className="font-mono text-slate-300">{svc._id}</span>
+                                    ID:{" "}
+                                    <span className="font-mono text-slate-300">
+                                      {svc._id}
+                                    </span>
                                   </div>
                                   <div>
                                     Cancellation Policy:{" "}
@@ -1138,14 +1188,15 @@ export default function AdminServicesPage() {
                                       {svc.cancellationPolicy || "Flexible"}
                                     </span>
                                   </div>
-                                  {typeof svc.createdBy === "object" && svc.createdBy?.name && (
-                                    <div>
-                                      Created by:{" "}
-                                      <span className="text-white">
-                                        {svc.createdBy.name}
-                                      </span>
-                                    </div>
-                                  )}
+                                  {typeof svc.createdBy === "object" &&
+                                    svc.createdBy?.name && (
+                                      <div>
+                                        Created by:{" "}
+                                        <span className="text-white">
+                                          {svc.createdBy.name}
+                                        </span>
+                                      </div>
+                                    )}
                                 </div>
 
                                 <div className="pt-2">
@@ -1232,13 +1283,17 @@ export default function AdminServicesPage() {
                             {formatPrice(svc.pricePerDay)}
                           </div>
                           <span className="text-[11px] font-medium text-slate-300">
-                            / {PRICING_UNIT_LABEL[svc.pricingUnit || "per_day"] || "per day"}
+                            /{" "}
+                            {PRICING_UNIT_LABEL[svc.pricingUnit || "per_day"] ||
+                              "per day"}
                           </span>
                         </div>
 
                         <div className="flex items-center gap-1 rounded-md bg-black/60 px-2 py-1 text-xs font-bold text-yellow-400 backdrop-blur-sm">
                           <Star size={12} className="fill-yellow-400" />
-                          <span>{svc.rating ? svc.rating.toFixed(1) : "5.0"}</span>
+                          <span>
+                            {svc.rating ? svc.rating.toFixed(1) : "5.0"}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -1269,7 +1324,10 @@ export default function AdminServicesPage() {
                       </div>
 
                       <div className="mt-4 flex items-center gap-1.5 text-xs text-slate-300">
-                        <MapPin size={13} className="shrink-0 text-yellow-400" />
+                        <MapPin
+                          size={13}
+                          className="shrink-0 text-yellow-400"
+                        />
                         <span className="truncate">
                           {svc.location.city}
                           {svc.location.state ? `, ${svc.location.state}` : ""}
@@ -1312,6 +1370,53 @@ export default function AdminServicesPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="mt-8 flex flex-col items-center justify-between gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-5 py-3.5 backdrop-blur-xl sm:flex-row">
+            <span className="text-xs text-slate-400">
+              Showing{" "}
+              <span className="font-semibold text-white">
+                {(page - 1) * limit + 1}
+              </span>{" "}
+              to{" "}
+              <span className="font-semibold text-white">
+                {Math.min(page * limit, totalItems)}
+              </span>{" "}
+              of <span className="font-semibold text-white">{totalItems}</span>{" "}
+              services
+            </span>
+
+            <div className="flex items-center gap-2">
+              <button
+                id="admin-services-prev-btn"
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="flex items-center gap-1.5 cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <ChevronLeft size={15} />
+                Previous
+              </button>
+
+              <div className="rounded-xl border border-white/[0.08] bg-[#071329] px-3 py-1.5 text-xs text-slate-300">
+                Page <span className="font-bold text-white">{page}</span> of{" "}
+                <span className="font-bold text-white">{totalPages}</span>
+              </div>
+
+              <button
+                id="admin-services-next-btn"
+                type="button"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="flex items-center gap-1.5 cursor-pointer rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                Next
+                <ChevronRight size={15} />
+              </button>
+            </div>
           </div>
         )}
       </div>

@@ -69,29 +69,51 @@ export const getServices = async (
       startDate,
       endDate,
       search,
+      bookingMode,
+      includeInactive,
     } = req.query as Record<string, string>;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const query: Record<string, unknown> = {
-      isActive: true,
+    const query: Record<string, unknown> = {};
+
+    if (includeInactive !== 'true') {
+      query.isActive = true;
       // Exclude services whose availability window has already expired
-      $or: [
+      query.$or = [
         { availableTo: { $exists: false } },
         { availableTo: null },
         { availableTo: { $gte: today } },
-      ],
-    };
-
-    // Full-text search
-    if (search) {
-      query.$text = { $search: search };
+      ];
     }
 
     // Category filter
-    if (category) {
+    if (category && category !== 'all') {
       query.category = category;
+    }
+
+    // Booking mode filter
+    if (bookingMode && bookingMode !== 'all') {
+      query.bookingMode = bookingMode;
+    }
+
+    // Substring / regex search across title, description, city, tags
+    if (search && search.trim()) {
+      const s = search.trim();
+      const searchRegex = { $regex: s, $options: 'i' };
+      const searchConditions: Record<string, unknown>[] = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { 'location.city': searchRegex },
+        { tags: searchRegex },
+      ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: searchConditions }];
+        delete query.$or;
+      } else {
+        query.$or = searchConditions;
+      }
     }
 
     // City filter (case-insensitive)
@@ -122,13 +144,16 @@ export const getServices = async (
     }
 
     // Sorting
-    type SortOption = Record<string, 1 | -1 | { $meta: 'textScore' }>;
+    type SortOption = Record<string, 1 | -1>;
     const sortOptions: Record<string, SortOption> = {
       newest: { createdAt: -1 },
       oldest: { createdAt: 1 },
+      price_asc: { pricePerDay: 1 },
       pricePerDay_asc: { pricePerDay: 1 },
+      price_desc: { pricePerDay: -1 },
       pricePerDay_desc: { pricePerDay: -1 },
       rating_desc: { rating: -1 },
+      title: { title: 1 },
     };
     const selectedSort: SortOption = sortOptions[sort] || sortOptions.newest;
 

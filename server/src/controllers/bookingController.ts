@@ -375,7 +375,12 @@ export const getMyBookings = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { status, type } = req.query as { status?: string; type?: string };
+    const { status, type, page = '1', limit = '10' } = req.query as {
+      status?: string;
+      type?: string;
+      page?: string;
+      limit?: string;
+    };
     const query: Record<string, unknown> = { user: req.user!._id };
 
     if (status) {
@@ -407,11 +412,34 @@ export const getMyBookings = async (
       }
     }
 
-    const bookings = await Booking.find(query)
-      .populate('service', 'title category location pricePerDay images contact bookingMode pricingUnit cancellationPolicy')
-      .sort({ createdAt: -1 });
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
+    const skip = (pageNum - 1) * limitNum;
 
-    res.status(200).json({ success: true, data: bookings, count: bookings.length });
+    const [bookings, total] = await Promise.all([
+      Booking.find(query)
+        .populate('service', 'title category location pricePerDay images contact bookingMode pricingUnit cancellationPolicy')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum),
+      Booking.countDocuments(query),
+    ]);
+
+    const totalPages = Math.ceil(total / limitNum);
+
+    res.status(200).json({
+      success: true,
+      data: bookings,
+      count: bookings.length,
+      pagination: {
+        currentPage: pageNum,
+        totalPages,
+        totalItems: total,
+        itemsPerPage: limitNum,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
+      },
+    });
   } catch (error) {
     next(error);
   }

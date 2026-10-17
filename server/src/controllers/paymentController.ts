@@ -1,5 +1,7 @@
 import { Response, NextFunction } from 'express';
 import Booking from '../models/Booking';
+import User from '../models/User';
+import Service from '../models/Service';
 import stripe from '../config/stripe';
 import { AuthRequest } from '../middleware/auth';
 import appEvents from '../utils/eventEmitter';
@@ -65,6 +67,29 @@ export const getTransactions = async (
 
     const query = buildQuery({ paymentStatus, status, search, startDate, endDate });
 
+    // Database-level search on user name / email / service title / booking ID
+    if (search && !search.trim().startsWith('pi_')) {
+      const s = search.trim();
+      const regex = new RegExp(s, 'i');
+      const [matchedUsers, matchedServices] = await Promise.all([
+        User.find({ $or: [{ name: regex }, { email: regex }] }).select('_id'),
+        Service.find({ title: regex }).select('_id'),
+      ]);
+      const userIds = matchedUsers.map((u) => u._id);
+      const serviceIds = matchedServices.map((s) => s._id);
+
+      const orConditions: Record<string, unknown>[] = [
+        { user: { $in: userIds } },
+        { service: { $in: serviceIds } },
+      ];
+
+      if (/^[0-9a-fA-F]{24}$/.test(s)) {
+        orConditions.push({ _id: s });
+      }
+
+      query.$or = orConditions;
+    }
+
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(50, parseInt(limit));
     const skip = (pageNum - 1) * limitNum;
@@ -77,7 +102,7 @@ export const getTransactions = async (
     };
     const sortField = allowedSorts[sort] || '-createdAt';
 
-    let [bookings, total] = await Promise.all([
+    const [bookings, total] = await Promise.all([
       Booking.find(query)
         .populate('user', 'name email phone')
         .populate('service', 'title category location pricePerDay bookingMode pricingUnit')
@@ -86,23 +111,6 @@ export const getTransactions = async (
         .limit(limitNum),
       Booking.countDocuments(query),
     ]);
-
-    // Application-layer search on user name / email / service title / booking id
-    if (search && !search.trim().startsWith('pi_')) {
-      const s = search.trim().toLowerCase();
-      bookings = bookings.filter((b) => {
-        const user = b.user as unknown as { name: string; email: string } | null;
-        const svc = b.service as unknown as { title: string } | null;
-        return (
-          user?.name?.toLowerCase().includes(s) ||
-          user?.email?.toLowerCase().includes(s) ||
-          svc?.title?.toLowerCase().includes(s) ||
-          b._id.toString().toLowerCase().includes(s) ||
-          b._id.toString().slice(-6).toLowerCase().includes(s)
-        );
-      });
-      total = bookings.length;
-    }
 
     res.status(200).json({
       success: true,
