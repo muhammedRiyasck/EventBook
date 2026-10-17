@@ -384,8 +384,8 @@ export const getMyBookings = async (
 
     // Filter by tab type:
     //  - 'cancelled': all cancelled bookings
-    //  - 'upcoming': active upcoming bookings (endDate >= today midnight, not cancelled)
-    //  - 'past': finished bookings (endDate < today midnight, not cancelled)
+    //  - 'upcoming': active upcoming bookings (endDate >= today midnight, confirmed or pending)
+    //  - 'past': all past bookings (endDate < today midnight OR status is 'completed', including past cancelled/refunded events)
     //  - 'all' or empty: all bookings for this user
     if (type === 'cancelled') {
       query.status = 'cancelled';
@@ -399,9 +399,11 @@ export const getMyBookings = async (
     } else if (type === 'past') {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      query.endDate = { $lt: todayStart };
-      if (!status) {
-        query.status = { $ne: 'cancelled' };
+      if (status) {
+        query.status = status;
+        query.$or = [{ endDate: { $lt: todayStart } }, { status: 'completed' }];
+      } else {
+        query.$or = [{ endDate: { $lt: todayStart } }, { status: 'completed' }];
       }
     }
 

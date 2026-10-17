@@ -227,6 +227,12 @@ function BookingsContent() {
 
               const isActive =
                 booking.status === "confirmed" || booking.status === "pending";
+              const isPast = new Date(booking.endDate) < new Date();
+              const canCancel = isActive && new Date(booking.startDate) > new Date();
+              const canRetry =
+                booking.status === "pending" &&
+                booking.paymentStatus === "unpaid" &&
+                !isPast;
 
               return (
                 <div
@@ -270,9 +276,11 @@ function BookingsContent() {
                           ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
                           : booking.status === "pending"
                             ? "border-yellow-400/20 bg-yellow-400/10 text-yellow-400"
-                            : booking.status === "cancelled"
-                              ? "border-red-400/20 bg-red-400/10 text-red-400"
-                              : "border-white/10 bg-white/[0.05] text-slate-400"
+                            : booking.status === "completed"
+                              ? "border-blue-400/20 bg-blue-400/10 text-blue-400"
+                              : booking.status === "cancelled"
+                                ? "border-red-400/20 bg-red-400/10 text-red-400"
+                                : "border-white/10 bg-white/[0.05] text-slate-400"
                       }`}
                     >
                       <span
@@ -281,9 +289,11 @@ function BookingsContent() {
                             ? "bg-emerald-400"
                             : booking.status === "pending"
                               ? "bg-yellow-400"
-                              : booking.status === "cancelled"
-                                ? "bg-red-400"
-                                : "bg-slate-400"
+                              : booking.status === "completed"
+                                ? "bg-blue-400"
+                                : booking.status === "cancelled"
+                                  ? "bg-red-400"
+                                  : "bg-slate-400"
                         }`}
                       />
 
@@ -485,7 +495,7 @@ function BookingsContent() {
 
                     <div className="flex flex-wrap items-center gap-2">
                     {/* Retry payment */}
-                    {booking.status === "pending" && booking.paymentStatus === "unpaid" && (
+                    {canRetry && (
                       <button
                         id={`retry-payment-${booking._id}`}
                         onClick={() => handleRetryPayment(booking._id)}
@@ -507,7 +517,7 @@ function BookingsContent() {
                     )}
 
                     {/* Cancel */}
-                    {isActive && (
+                    {canCancel && (
                       <button
                         id={`cancel-booking-${booking._id}`}
                         onClick={() => setCancellingBooking(booking)}
