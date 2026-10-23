@@ -14,11 +14,14 @@ import paymentRoutes from './routes/payments';
 import adminRoutes from './routes/admin';
 import webhookRoutes from './routes/webhooks';
 import errorHandler from './middleware/errorHandler';
+import { setupSwagger } from './config/swagger';
 // Import eventEmitter to ensure all email listeners are registered at startup
 import './utils/eventEmitter';
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB (skip in test environment — tests manage their own in-memory DB)
+if (process.env.NODE_ENV !== 'test') {
+  connectDB();
+}
 
 const app = express();
 
@@ -83,6 +86,9 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ success: true, message: 'EventBook API is running', timestamp: new Date() });
 });
 
+// ─── API Documentation (Swagger UI) ──────────────────────────────────────
+setupSwagger(app);
+
 // 404 handler for unknown routes
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ success: false, message: 'Route not found' });
@@ -92,10 +98,12 @@ app.use((_req: Request, res: Response) => {
 app.use(errorHandler);
 
 // ─── Start Server ─────────────────────────────────────────────────────────
-const PORT = parseInt(env.PORT);
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📌 Environment: ${env.NODE_ENV}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  const PORT = parseInt(env.PORT);
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📌 Environment: ${env.NODE_ENV}`);
+  });
+}
 
 export default app;

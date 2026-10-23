@@ -49,13 +49,55 @@ A full-stack event booking platform where users can search and book services lik
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 14 (App Router), TypeScript, CSS Modules |
-| Backend | Node.js, Express.js, TypeScript |
-| Database | MongoDB + Mongoose ODM |
-| Auth | JWT + bcryptjs |
-| File Upload | Multer (memory) + Cloudinary |
-| Email | Nodemailer (Gmail SMTP) |
-| Validation | express-validator |
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind/CSS Modules |
+| Backend Architecture | Layered Clean Architecture (Controller → Service → Repository → DB) |
+| Runtime | Node.js (v20+ LTS), Express.js 5 |
+| Database | MongoDB + Mongoose ODM (Atomic operations & index optimization) |
+| Payment Gateway | Stripe API (PaymentIntents, Webhook signatures, Idempotent lifecycle) |
+| Unit & Integration Testing | Vitest, Supertest, V8 Coverage |
+| Containerization | Docker (Multi-stage build), Docker Compose |
+| Auth & Security | JWT, bcryptjs, Helmet, Express Rate Limit, Mongo Sanitize |
+| File Storage | Cloudinary API + Multer (in-memory streaming) |
+| Event Architecture | Node.js EventEmitter (Decoupled async notification bus) |
+
+---
+
+## 🏛 Backend System Architecture
+
+```
+HTTP Requests
+      │
+      ▼
+┌────────────────────────────────────────────────────────┐
+│  Routing Layer (src/routes/)                           │
+│  - Endpoint routing, HTTP method mapping               │
+│  - express-validator request boundary validation       │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│  Thin Controller Layer (src/controllers/)             │
+│  - Pure HTTP adapters (status codes, headers, cookies) │
+│  - No business logic, no direct DB queries (5-10 LOC)  │
+└──────────────────────────┬─────────────────────────────┘
+                           │
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│  Domain Service Layer (src/services/)                  │
+│  - Core business rules, booking state machines         │
+│  - Stripe payment orchestration & webhook idempotency  │
+│  - Throws typed AppError instances (400, 401, 403, 409)│
+└──────────────┬──────────────────────────┬──────────────┘
+               │                          │
+               ▼                          ▼
+┌──────────────────────────────┐ ┌──────────────────────────────┐
+│  Repository Layer            │ │  Event Bus & External APIs   │
+│  (src/repositories/)        │ │  - Node.js EventEmitter      │
+│  - Encapsulates all queries  │ │  - Stripe SDK                │
+│  - Atomic reservation locks  │ │  - Cloudinary Streaming      │
+│  - Mongoose Document / Model │ │  - Nodemailer SMTP           │
+└──────────────────────────────┘ └──────────────────────────────┘
+```
 
 ---
 
@@ -63,29 +105,29 @@ A full-stack event booking platform where users can search and book services lik
 
 ```
 event-booking-platform/
+├── docker-compose.yml         # Multi-container orchestration (App + MongoDB)
 ├── client/                    # Next.js 14 frontend
 │   └── src/
 │       ├── app/               # App Router pages
-│       │   ├── page.tsx       # Landing page
-│       │   ├── login/         # Login page
-│       │   ├── register/      # Register page
-│       │   ├── services/      # Browse + Detail pages
-│       │   ├── bookings/      # User bookings
-│       │   ├── dashboard/     # User dashboard
-│       │   └── admin/         # Admin pages
-│       ├── components/        # Reusable components
+│       ├── components/        # Reusable UI components
 │       ├── context/           # AuthContext
-│       ├── lib/               # Axios API client
-│       └── types/             # TypeScript types
+│       └── lib/               # Axios API client
 │
-└── server/                    # Express.js backend
+└── server/                    # Enterprise Express.js Backend
+    ├── Dockerfile             # Multi-stage production container
+    ├── vitest.config.ts       # Test runner configuration & coverage rules
     └── src/
-        ├── config/            # DB, Cloudinary, env
-        ├── controllers/       # Auth, Service, Booking
-        ├── middleware/        # JWT auth, error handler, upload
-        ├── models/            # User, Service, Booking schemas
-        ├── routes/            # API routes
-        └── utils/             # Email, price calculator
+        ├── config/            # Strongly-typed env, DB, Stripe, Cloudinary
+        ├── controllers/       # Thin HTTP adapters
+        ├── dto/               # Data Transfer Objects & validation types
+        ├── errors/            # AppError hierarchy (Conflict, NotFound, etc.)
+        ├── middleware/        # JWT auth, error handler, rate limits
+        ├── models/            # Mongoose schemas & TypeScript interfaces
+        ├── repositories/      # Repository pattern (all DB queries)
+        ├── routes/            # Express route definitions
+        ├── services/          # Pure business logic layer
+        ├── utils/             # EventEmitter, price calculator, email templates
+        └── __tests__/         # Automated Vitest unit & integration test suites
 ```
 
 ---
@@ -387,6 +429,66 @@ cd server && npm run build
 # Build frontend
 cd client && npm run build
 ```
+
+---
+
+## 🧪 Automated Testing
+
+EventBook features comprehensive automated test suites using **Vitest** and **Supertest** covering domain services, state machines, and API integration:
+
+```bash
+cd server
+
+# Run all test suites
+npm test
+
+# Run with test coverage report
+npm run test:coverage
+```
+
+---
+
+## 🐳 Running with Docker
+
+Run the entire backend stack and MongoDB with a single command:
+
+```bash
+# Build and run containers in background
+docker compose up -d
+
+# Check service health
+curl http://localhost:5000/api/health
+
+# View live logs
+docker compose logs -f server
+
+# Stop containers
+docker compose down
+```
+
+---
+
+## 💼 Resume & Interview Talking Points
+
+- **Layered Clean Architecture**: Decoupled HTTP transport (Controllers), domain business logic (Services), and database queries (Repositories) to achieve high testability and maintainability.
+- **Race Condition Prevention**: Solved the classic booking double-booking concurrency problem using atomic conditional updates (`atomicReserveDates`) with automatic rollback mechanics.
+- **Idempotent Payment Processing**: Engineered Stripe webhook handling with signature verification, idempotent lifecycle transitions, and automatic refund calculations based on tiered cancellation policies (`Flexible`, `Moderate`).
+- **Domain Event-Driven Architecture**: Decoupled non-blocking side-effects (confirmation emails, OTP generation, admin alerts) into an asynchronous event bus using Node.js `EventEmitter`.
+- **Operational Error Hierarchy**: Built a centralized `AppError` inheritance tree distinguishing operational client errors from fatal system errors, ensuring clean JSON responses without leaking server stack traces in production.
+- **Strict TypeScript & Automated Testing**: Fully typed codebase with zero compilation errors, combined with unit and integration test suites using Vitest and Supertest.
+
+---
+
+## 📖 Interactive API Documentation (Swagger / OpenAPI)
+
+EventBook includes a complete, interactive **Swagger UI** for testing and exploring endpoints directly in the browser:
+
+- **Swagger UI**: [`http://localhost:5000/api/docs`](http://localhost:5000/api/docs)
+- **OpenAPI 3.0 Raw JSON**: [`http://localhost:5000/api/docs.json`](http://localhost:5000/api/docs.json) (importable into Postman or Insomnia)
+
+Features:
+- Full request/response schemas for Auth, Services, Bookings, and Payments.
+- Interactive **"Try it out"** button with persistent JWT Bearer token authentication.
 
 ---
 
