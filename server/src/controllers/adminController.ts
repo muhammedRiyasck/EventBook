@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import User from '../models/User';
+import userRepository from '../repositories/UserRepository';
 
 /**
  * @desc    Get all users (admin only)
@@ -33,14 +33,7 @@ export const getUsers = async (
       filter.role = role;
     }
 
-    const [users, total] = await Promise.all([
-      User.find(filter)
-        .select('-password')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      User.countDocuments(filter),
-    ]);
+    const [users, total] = await userRepository.findAll(filter, skip, limit);
 
     res.status(200).json({
       success: true,
