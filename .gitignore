@@ -7,6 +7,8 @@ server/node_modules/
 server/dist/
 client/.next/
 client/out/
+coverage/
+server/coverage/
 
 # Environment files
 .env
