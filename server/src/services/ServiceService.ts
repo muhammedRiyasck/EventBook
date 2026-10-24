@@ -1,7 +1,6 @@
-import streamifier from 'streamifier';
-import cloudinary from '../config/cloudinary';
 import serviceRepository from '../repositories/ServiceRepository';
 import bookingRepository from '../repositories/BookingRepository';
+import storageService from './StorageService';
 import { IService } from '../models/Service';
 import { NotFoundError } from '../errors/AppError';
 import { CreateServiceDto, UpdateServiceDto, GetServicesQueryDto } from '../dto/service.dto';
@@ -22,41 +21,6 @@ interface SlotAvailability {
  * ServiceService — all service management business logic.
  */
 export class ServiceService {
-  /**
-   * Upload a buffer to Cloudinary with a 25-second timeout.
-   */
-  private uploadToCloudinary(buffer: Buffer, folder: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      let settled = false;
-
-      const timer = setTimeout(() => {
-        if (!settled) {
-          settled = true;
-          reject(new Error('Image upload to Cloudinary timed out (25s)'));
-        }
-      }, 25000);
-
-      const stream = cloudinary.uploader.upload_stream(
-        { folder, resource_type: 'image' },
-        (error, result) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          if (error || !result) return reject(error || new Error('Cloudinary upload failed'));
-          resolve(result.secure_url);
-        }
-      );
-
-      stream.on('error', (err) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        reject(err);
-      });
-
-      streamifier.createReadStream(buffer).pipe(stream);
-    });
-  }
 
   private parseJsonField<T>(value: unknown, fallback: T): T {
     if (typeof value === 'string') {
@@ -101,24 +65,32 @@ export class ServiceService {
   ): Promise<IService> {
     const imageUrls: string[] = [];
     if (files && files.length > 0) {
-      const uploads = files.map((f) => this.uploadToCloudinary(f.buffer, 'event-booking/services'));
+      const uploads = files.map((f) => storageService.uploadMulterFile(f, 'services'));
       imageUrls.push(...(await Promise.all(uploads)));
     }
 
-    const isFree = dto.isFree === true || (dto.isFree as unknown as string) === 'true';
-    return serviceRepository.create({
-      ...dto,
-      isFree,
-      pricePerDay: isFree ? 0 : Number(dto.pricePerDay),
-      location: this.parseJsonField(dto.location, dto.location),
-      contact: this.parseJsonField(dto.contact, dto.contact),
-      tags: this.parseJsonField(dto.tags, []),
-      availability: this.parseJsonField([] as unknown, []) as IService['availability'],
-      amenities: this.parseJsonField(dto.amenities, []),
-      timeSlots: this.parseJsonField(dto.timeSlots, []) as IService['timeSlots'],
-      images: imageUrls,
-      createdBy: admin._id.toString(),
-    });
+    try {
+      const isFree = dto.isFree === true || (dto.isFree as unknown as string) === 'true';
+      return await serviceRepository.create({
+        ...dto,
+        isFree,
+        pricePerDay: isFree ? 0 : Number(dto.pricePerDay),
+        location: this.parseJsonField(dto.location, dto.location),
+        contact: this.parseJsonField(dto.contact, dto.contact),
+        tags: this.parseJsonField(dto.tags, []),
+        availability: this.parseJsonField([] as unknown, []) as IService['availability'],
+        amenities: this.parseJsonField(dto.amenities, []),
+        timeSlots: this.parseJsonField(dto.timeSlots, []) as IService['timeSlots'],
+        images: imageUrls,
+        createdBy: admin._id.toString(),
+      });
+    } catch (error) {
+      // Clean up uploaded images if DB insertion failed (avoids orphan images)
+      if (imageUrls.length > 0) {
+        await Promise.allSettled(imageUrls.map((url) => storageService.deleteImage(url)));
+      }
+      throw error;
+    }
   }
 
   async updateService(
@@ -131,46 +103,63 @@ export class ServiceService {
 
     let newImageUrls: string[] = [];
     if (files && files.length > 0) {
-      const uploads = files.map((f) => this.uploadToCloudinary(f.buffer, 'event-booking/services'));
+      const uploads = files.map((f) => storageService.uploadMulterFile(f, 'services'));
       newImageUrls = await Promise.all(uploads);
     }
 
-    const keepImages = this.parseJsonField<string[]>(dto.keepImages, service.images || []);
-    const isFree =
-      dto.isFree === true || (dto.isFree as unknown as string) === 'true'
-        ? true
-        : dto.isFree === false || (dto.isFree as unknown as string) === 'false'
-        ? false
-        : undefined;
+    const previousImages = service.images || [];
+    const keepImages = this.parseJsonField<string[]>(dto.keepImages, previousImages);
+    const removedImages = previousImages.filter((img) => !keepImages.includes(img));
 
-    const updateFields: Record<string, unknown> = {};
-    if (dto.title !== undefined) updateFields.title = dto.title;
-    if (dto.category !== undefined) updateFields.category = dto.category;
-    if (dto.description !== undefined) updateFields.description = dto.description;
-    if (isFree !== undefined) {
-      updateFields.isFree = isFree;
-      updateFields.pricePerDay = isFree ? 0 : dto.pricePerDay !== undefined ? Number(dto.pricePerDay) : service.pricePerDay;
-    } else if (dto.pricePerDay !== undefined) {
-      updateFields.pricePerDay = Number(dto.pricePerDay);
+    try {
+      const isFree =
+        dto.isFree === true || (dto.isFree as unknown as string) === 'true'
+          ? true
+          : dto.isFree === false || (dto.isFree as unknown as string) === 'false'
+          ? false
+          : undefined;
+
+      const updateFields: Record<string, unknown> = {};
+      if (dto.title !== undefined) updateFields.title = dto.title;
+      if (dto.category !== undefined) updateFields.category = dto.category;
+      if (dto.description !== undefined) updateFields.description = dto.description;
+      if (isFree !== undefined) {
+        updateFields.isFree = isFree;
+        updateFields.pricePerDay = isFree ? 0 : dto.pricePerDay !== undefined ? Number(dto.pricePerDay) : service.pricePerDay;
+      } else if (dto.pricePerDay !== undefined) {
+        updateFields.pricePerDay = Number(dto.pricePerDay);
+      }
+      if (dto.location) updateFields.location = this.parseJsonField(dto.location, dto.location);
+      if (dto.contact) updateFields.contact = this.parseJsonField(dto.contact, dto.contact);
+      if (dto.tags) updateFields.tags = this.parseJsonField(dto.tags, dto.tags);
+      if (dto.amenities) updateFields.amenities = this.parseJsonField(dto.amenities, dto.amenities);
+      if (dto.timeSlots !== undefined) updateFields.timeSlots = this.parseJsonField(dto.timeSlots, dto.timeSlots);
+      if (dto.customCategory !== undefined) updateFields.customCategory = dto.customCategory;
+      if (dto.capacity) updateFields.capacity = Number(dto.capacity);
+      if (dto.pricingUnit) updateFields.pricingUnit = dto.pricingUnit;
+      if (dto.cancellationPolicy) updateFields.cancellationPolicy = dto.cancellationPolicy;
+      if (dto.availableFrom) updateFields.availableFrom = new Date(dto.availableFrom);
+      if (dto.availableTo) updateFields.availableTo = new Date(dto.availableTo);
+      if (dto.bookingMode) updateFields.bookingMode = dto.bookingMode;
+      if (dto.maxBookingsPerDay) updateFields.maxBookingsPerDay = Number(dto.maxBookingsPerDay);
+      updateFields.images = [...keepImages, ...newImageUrls];
+
+      const updated = await serviceRepository.updateById(id, updateFields as Partial<IService>);
+      if (!updated) throw new NotFoundError('Service not found');
+
+      // Clean up orphaned images that were removed during the update
+      if (removedImages.length > 0) {
+        await Promise.allSettled(removedImages.map((img) => storageService.deleteImage(img)));
+      }
+
+      return updated;
+    } catch (error) {
+      // Clean up newly uploaded images if update failed
+      if (newImageUrls.length > 0) {
+        await Promise.allSettled(newImageUrls.map((url) => storageService.deleteImage(url)));
+      }
+      throw error;
     }
-    if (dto.location) updateFields.location = this.parseJsonField(dto.location, dto.location);
-    if (dto.contact) updateFields.contact = this.parseJsonField(dto.contact, dto.contact);
-    if (dto.tags) updateFields.tags = this.parseJsonField(dto.tags, dto.tags);
-    if (dto.amenities) updateFields.amenities = this.parseJsonField(dto.amenities, dto.amenities);
-    if (dto.timeSlots !== undefined) updateFields.timeSlots = this.parseJsonField(dto.timeSlots, dto.timeSlots);
-    if (dto.customCategory !== undefined) updateFields.customCategory = dto.customCategory;
-    if (dto.capacity) updateFields.capacity = Number(dto.capacity);
-    if (dto.pricingUnit) updateFields.pricingUnit = dto.pricingUnit;
-    if (dto.cancellationPolicy) updateFields.cancellationPolicy = dto.cancellationPolicy;
-    if (dto.availableFrom) updateFields.availableFrom = new Date(dto.availableFrom);
-    if (dto.availableTo) updateFields.availableTo = new Date(dto.availableTo);
-    if (dto.bookingMode) updateFields.bookingMode = dto.bookingMode;
-    if (dto.maxBookingsPerDay) updateFields.maxBookingsPerDay = Number(dto.maxBookingsPerDay);
-    updateFields.images = [...keepImages, ...newImageUrls];
-
-    const updated = await serviceRepository.updateById(id, updateFields as Partial<IService>);
-    if (!updated) throw new NotFoundError('Service not found');
-    return updated;
   }
 
   async deleteService(id: string): Promise<void> {

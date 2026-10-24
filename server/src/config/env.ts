@@ -20,6 +20,13 @@ const env = {
   BREVO_API_KEY: (process.env.BREVO_API_KEY || '').trim().replace(/^["']|["']$/g, ''),
   BREVO_SENDER_EMAIL: (process.env.BREVO_SENDER_EMAIL || process.env.EMAIL_USER || '').trim().replace(/^["']|["']$/g, ''),
   BREVO_SENDER_NAME: (process.env.BREVO_SENDER_NAME || 'EventBook Platform').trim().replace(/^["']|["']$/g, ''),
+  // AWS S3
+  AWS_ACCESS_KEY_ID: (process.env.AWS_ACCESS_KEY_ID || '').trim(),
+  AWS_SECRET_ACCESS_KEY: (process.env.AWS_SECRET_ACCESS_KEY || '').trim(),
+  AWS_REGION: (process.env.AWS_REGION || 'us-east-1').trim(),
+  AWS_S3_BUCKET: (process.env.AWS_S3_BUCKET || '').trim(),
+  AWS_S3_CUSTOM_DOMAIN: (process.env.AWS_S3_CUSTOM_DOMAIN || '').trim(),
+  AWS_S3_ENDPOINT: (process.env.AWS_S3_ENDPOINT || '').trim(),
 };
 
 export default env;

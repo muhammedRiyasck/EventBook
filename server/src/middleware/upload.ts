@@ -1,6 +1,6 @@
 import multer from 'multer';
 
-// Use memory storage so we can stream buffer to Cloudinary
+// Use memory storage so we can stream/upload buffer directly to S3 or Cloudinary
 const storage = multer.memoryStorage();
 
 const fileFilter = (
