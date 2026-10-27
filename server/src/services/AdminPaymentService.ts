@@ -1,9 +1,11 @@
-import Booking from '../models/Booking';
-import User from '../models/User';
-import Service from '../models/Service';
 import stripe from '../config/stripe';
 import appEvents from '../utils/eventEmitter';
 import bookingRepository from '../repositories/BookingRepository';
+import userRepository from '../repositories/UserRepository';
+import serviceRepository from '../repositories/ServiceRepository';
+import { IBookingRepository } from '../repositories/interfaces/IBookingRepository';
+import { IUserRepository } from '../repositories/interfaces/IUserRepository';
+import { IServiceRepository } from '../repositories/interfaces/IServiceRepository';
 import { NotFoundError, BadRequestError } from '../errors/AppError';
 import { IBooking } from '../models/Booking';
 
@@ -31,14 +33,24 @@ export interface PaginatedTransactions {
 
 /**
  * AdminPaymentService — revenue reports, transaction queries, admin refunds.
- * Added to PaymentService domain to keep all payment logic in the service layer.
  */
 export class AdminPaymentService {
+  constructor(
+    private readonly bookingRepo: IBookingRepository = bookingRepository,
+    private readonly userRepo: IUserRepository = userRepository,
+    private readonly serviceRepo: IServiceRepository = serviceRepository
+  ) {}
+
   async getTransactions(query: TransactionQuery): Promise<PaginatedTransactions> {
     const {
-      page = '1', limit = '15',
-      paymentStatus = 'all', status = 'all',
-      search = '', startDate = '', endDate = '', sort = '-createdAt',
+      page = '1',
+      limit = '15',
+      paymentStatus = 'all',
+      status = 'all',
+      search = '',
+      startDate = '',
+      endDate = '',
+      sort = '-createdAt',
     } = query;
 
     const filter: Record<string, unknown> = {
@@ -54,12 +66,12 @@ export class AdminPaymentService {
       const s = search.trim();
       const regex = new RegExp(s, 'i');
       const [matchedUsers, matchedServices] = await Promise.all([
-        User.find({ $or: [{ name: regex }, { email: regex }] }).select('_id'),
-        Service.find({ title: regex }).select('_id'),
+        this.userRepo.findIdsByRegex(regex),
+        this.serviceRepo.findIdsByRegex(regex),
       ]);
       const orConditions: Record<string, unknown>[] = [
-        { user: { $in: matchedUsers.map((u) => u._id) } },
-        { service: { $in: matchedServices.map((s) => s._id) } },
+        { user: { $in: matchedUsers } },
+        { service: { $in: matchedServices } },
       ];
       if (/^[0-9a-fA-F]{24}$/.test(s)) orConditions.push({ _id: s });
       filter.$or = orConditions;
@@ -81,20 +93,19 @@ export class AdminPaymentService {
     const skip = (pageNum - 1) * limitNum;
 
     const allowedSorts: Record<string, string> = {
-      '-createdAt': '-createdAt', createdAt: 'createdAt',
-      '-totalPrice': '-totalPrice', totalPrice: 'totalPrice',
+      '-createdAt': '-createdAt',
+      createdAt: 'createdAt',
+      '-totalPrice': '-totalPrice',
+      totalPrice: 'totalPrice',
     };
     const sortField = allowedSorts[sort] || '-createdAt';
 
-    const [data, total] = await Promise.all([
-      Booking.find(filter)
-        .populate('user', 'name email phone')
-        .populate('service', 'title category location pricePerDay bookingMode pricingUnit')
-        .sort(sortField)
-        .skip(skip)
-        .limit(limitNum),
-      Booking.countDocuments(filter),
-    ]);
+    const [data, total] = await this.bookingRepo.findPaginatedTransactions(
+      filter,
+      sortField,
+      skip,
+      limitNum
+    );
 
     const totalPages = Math.ceil(Math.max(total, 1) / limitNum);
     return {
@@ -110,9 +121,7 @@ export class AdminPaymentService {
   }
 
   async getTransactionById(bookingId: string) {
-    const booking = await Booking.findById(bookingId)
-      .populate('user', 'name email phone')
-      .populate('service', 'title category location pricePerDay images contact bookingMode pricingUnit');
+    const booking = await this.bookingRepo.findByIdWithFullDetails(bookingId);
 
     if (!booking) throw new NotFoundError('Transaction not found');
 
@@ -122,7 +131,17 @@ export class AdminPaymentService {
         const pi = await stripe.paymentIntents.retrieve(booking.stripePaymentIntentId, {
           expand: ['charges'],
         });
-        const charge = (pi as unknown as { charges?: { data?: Array<{ receipt_url?: string; payment_method_details?: { card?: { last4?: string; brand?: string } }; id?: string }> } }).charges?.data?.[0];
+        const charge = (
+          pi as unknown as {
+            charges?: {
+              data?: Array<{
+                receipt_url?: string;
+                payment_method_details?: { card?: { last4?: string; brand?: string } };
+                id?: string;
+              }>;
+            };
+          }
+        ).charges?.data?.[0];
         stripeDetails = {
           id: pi.id,
           amount: pi.amount,
@@ -148,73 +167,8 @@ export class AdminPaymentService {
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    const [overview, dailyRevenue, topServices, refundStats] = await Promise.all([
-      Booking.aggregate([
-        {
-          $facet: {
-            totalRevenue: [
-              { $match: { paymentStatus: { $in: ['paid', 'partially_refunded', 'refunded'] } } },
-              { $group: { _id: null, total: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
-            ],
-            periodRevenue: [
-              {
-                $match: {
-                  paymentStatus: { $in: ['paid', 'partially_refunded', 'refunded'] },
-                  createdAt: { $gte: since },
-                },
-              },
-              { $group: { _id: null, total: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
-            ],
-          },
-        },
-      ]),
-      Booking.aggregate([
-        {
-          $match: {
-            paymentStatus: { $in: ['paid', 'partially_refunded', 'refunded'] },
-            createdAt: { $gte: since },
-          },
-        },
-        {
-          $group: {
-            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-            revenue: { $sum: '$totalPrice' },
-            refunds: {
-              $sum: {
-                $cond: [
-                  { $eq: ['$refundStatus', 'succeeded'] },
-                  { $ifNull: ['$refundAmount', 0] },
-                  0,
-                ],
-              },
-            },
-            count: { $sum: 1 },
-          },
-        },
-        { $sort: { _id: 1 } },
-      ]),
-      Booking.aggregate([
-        { $match: { paymentStatus: { $in: ['paid', 'partially_refunded', 'refunded'] } } },
-        { $group: { _id: '$service', revenue: { $sum: '$totalPrice' }, bookings: { $sum: 1 } } },
-        { $sort: { revenue: -1 } },
-        { $limit: 5 },
-        { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'service' } },
-        { $unwind: '$service' },
-        { $project: { title: '$service.title', category: '$service.category', revenue: 1, bookings: 1 } },
-      ]),
-      Booking.aggregate([
-        { $match: { refundStatus: 'succeeded' } },
-        {
-          $group: {
-            _id: null,
-            totalRefunded: { $sum: '$refundAmount' },
-            refundCount: { $sum: 1 },
-            fullRefunds: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'refunded'] }, 1, 0] } },
-            partialRefunds: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'partially_refunded'] }, 1, 0] } },
-          },
-        },
-      ]),
-    ]);
+    const { overview, dailyRevenue, topServices, refundStats } =
+      await this.bookingRepo.getRevenueSummaryAggregates(since);
 
     const o = overview[0];
     const grossRevenue = o?.totalRevenue?.[0]?.total || 0;
@@ -256,15 +210,7 @@ export class AdminPaymentService {
     const limitNum = Math.min(50, parseInt(limit));
     const skip = (pageNum - 1) * limitNum;
 
-    const [data, total] = await Promise.all([
-      Booking.find(filter)
-        .populate('user', 'name email phone')
-        .populate('service', 'title category')
-        .sort('-refundedAt')
-        .skip(skip)
-        .limit(limitNum),
-      Booking.countDocuments(filter),
-    ]);
+    const [data, total] = await this.bookingRepo.findRefunds(filter, skip, limitNum);
 
     const totalPages = Math.ceil(Math.max(total, 1) / limitNum);
     return {
@@ -280,9 +226,7 @@ export class AdminPaymentService {
   }
 
   async issueAdminRefund(bookingId: string, amount?: number, reason?: string) {
-    const booking = await Booking.findById(bookingId)
-      .populate('user', 'name email')
-      .populate('service', 'title');
+    const booking = await this.bookingRepo.findByIdWithFullDetails(bookingId);
 
     if (!booking) throw new NotFoundError('Transaction not found');
     if (!booking.stripePaymentIntentId) {
@@ -315,7 +259,7 @@ export class AdminPaymentService {
     booking.refundedAt = new Date();
     booking.paymentStatus = isFullRefund ? 'refunded' : 'partially_refunded';
     if (isFullRefund) booking.status = 'cancelled';
-    await bookingRepository.save(booking);
+    await this.bookingRepo.save(booking);
 
     const user = booking.user as unknown as { name: string; email: string };
     const service = booking.service as unknown as { title: string };

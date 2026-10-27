@@ -2,6 +2,8 @@ import stripe from '../config/stripe';
 import appEvents from '../utils/eventEmitter';
 import bookingRepository from '../repositories/BookingRepository';
 import serviceRepository from '../repositories/ServiceRepository';
+import { IBookingRepository } from '../repositories/interfaces/IBookingRepository';
+import { IServiceRepository } from '../repositories/interfaces/IServiceRepository';
 import {
   calculateTotalDays,
   calculateTotalHours,
@@ -14,7 +16,12 @@ import {
   NotFoundError,
   ServiceUnavailableError,
 } from '../errors/AppError';
-import { CreateBookingDto, UpdateBookingStatusDto, GetMyBookingsQueryDto, GetAllBookingsQueryDto } from '../dto/booking.dto';
+import {
+  CreateBookingDto,
+  UpdateBookingStatusDto,
+  GetMyBookingsQueryDto,
+  GetAllBookingsQueryDto,
+} from '../dto/booking.dto';
 import { IUser } from '../models/User';
 import { IBooking, BookingStatus } from '../models/Booking';
 
@@ -32,9 +39,15 @@ interface PaginatedResult<T> {
 
 /**
  * BookingService — all booking domain business logic.
+ * Adheres to DIP & SRP: strictly uses injected IBookingRepository and IServiceRepository.
  * No Mongoose imports. No req/res. Pure business rules.
  */
 export class BookingService {
+  constructor(
+    private readonly bookingRepo: IBookingRepository = bookingRepository,
+    private readonly serviceRepo: IServiceRepository = serviceRepository
+  ) {}
+
   /**
    * Create a new booking with full validation:
    * - date validation
@@ -56,7 +69,7 @@ export class BookingService {
 
     const { serviceId, startDate, endDate, notes, guestCount, timeSlotId } = dto;
 
-    const service = await serviceRepository.findActive(serviceId);
+    const service = await this.serviceRepo.findActive(serviceId);
     if (!service) {
       throw new NotFoundError('Service not found or is currently unavailable');
     }
@@ -109,11 +122,25 @@ export class BookingService {
         throw new BadRequestError('Please select a time slot for this service');
       }
 
-      const slot = service.timeSlots.find(
+      const slot = service.timeSlots?.find(
         (s) => s._id.toString() === timeSlotId && s.isActive
       );
       if (!slot) {
-        throw new BadRequestError('Invalid or unavailable time slot selected');
+        throw new BadRequestError('Selected time slot is invalid or no longer active');
+      }
+
+      // Check slot capacity
+      const slotBookings = await this.bookingRepo.countSlotBookings(
+        serviceId,
+        timeSlotId,
+        startDay,
+        new Date(startDay.getTime() + 86400000)
+      );
+
+      if (slotBookings >= slot.maxBookings) {
+        throw new ConflictError(
+          `This time slot is fully booked for ${startDay.toLocaleDateString('en-IN')}. Please choose another slot or date.`
+        );
       }
 
       resolvedSlot = {
@@ -122,28 +149,23 @@ export class BookingService {
         startTime: slot.startTime,
         endTime: slot.endTime,
       };
-      totalHours = calculateTotalHours(slot.startTime, slot.endTime);
 
-      const dayStart = new Date(start.toDateString());
-      const dayEnd = new Date(dayStart.getTime() + 86400000);
-      const slotCount = await bookingRepository.countSlotBookings(serviceId, timeSlotId, dayStart, dayEnd);
-
-      if (slotCount >= slot.maxBookings) {
-        throw new ConflictError(
-          `The "${slot.label}" time slot is already fully booked for ${start.toLocaleDateString('en-IN')}`
-        );
+      if (service.pricingUnit === 'per_hour') {
+        totalHours = calculateTotalHours(slot.startTime, slot.endTime);
       }
     }
 
-    // ── Max Bookings Per Day ───────────────────────────────────────────────
+    // ── Max Bookings Per Day (for services without slots) ───────────────────
     if (service.bookingMode !== 'time_slot' && service.maxBookingsPerDay) {
-      const dayStart = new Date(start.toDateString());
-      const dayEnd = new Date(dayStart.getTime() + 86400000);
-      const dayCount = await bookingRepository.countDayBookings(serviceId, dayStart, dayEnd);
+      const dayBookings = await this.bookingRepo.countDayBookings(
+        serviceId,
+        startDay,
+        new Date(startDay.getTime() + 86400000)
+      );
 
-      if (dayCount >= service.maxBookingsPerDay) {
+      if (dayBookings >= service.maxBookingsPerDay) {
         throw new ConflictError(
-          `This service is fully booked for ${start.toLocaleDateString('en-IN')}. No more bookings are available on this date.`
+          `This service has reached its maximum daily bookings limit (${service.maxBookingsPerDay}) for the selected date.`
         );
       }
     }
@@ -162,7 +184,7 @@ export class BookingService {
     }
 
     // ── Pending Booking Guard ──────────────────────────────────────────────
-    const existingPending = await bookingRepository.findExistingPending(
+    const existingPending = await this.bookingRepo.findExistingPending(
       user._id,
       serviceId,
       start,
@@ -178,7 +200,7 @@ export class BookingService {
     }
 
     // ── Duplicate Confirmed Booking Check ─────────────────────────────────
-    const duplicate = await bookingRepository.findConfirmedDuplicate(user._id, serviceId, start, end);
+    const duplicate = await this.bookingRepo.findConfirmedDuplicate(user._id, serviceId, start, end);
     if (duplicate) {
       throw new ConflictError(
         'You already have an active booking for this service on the selected dates'
@@ -197,7 +219,7 @@ export class BookingService {
 
     // ── Atomic Date Reservation (date_range mode only) ────────────────────
     if (service.bookingMode !== 'time_slot') {
-      const reserved = await serviceRepository.atomicReserveDates(serviceId, start, end);
+      const reserved = await this.serviceRepo.atomicReserveDates(serviceId, start, end);
       if (!reserved) {
         throw new ConflictError(
           'Service is not available for the selected dates. It may have just been booked by someone else.'
@@ -208,7 +230,7 @@ export class BookingService {
     // ── Create Booking Record ─────────────────────────────────────────────
     let booking: IBooking;
     try {
-      booking = await bookingRepository.create({
+      booking = await this.bookingRepo.create({
         user: user._id,
         service: serviceId as unknown as IBooking['service'],
         startDate: start,
@@ -228,7 +250,7 @@ export class BookingService {
       });
     } catch (err) {
       if (service.bookingMode !== 'time_slot') {
-        await serviceRepository.rollbackReservedDates(serviceId, start, end);
+        await this.serviceRepo.rollbackReservedDates(serviceId, start, end);
       }
       throw err;
     }
@@ -244,7 +266,7 @@ export class BookingService {
         });
         clientSecret = paymentIntent.client_secret;
         booking.pendingStripePaymentIntentId = paymentIntent.id;
-        await bookingRepository.save(booking);
+        await this.bookingRepo.save(booking);
       } catch {
         throw new ServiceUnavailableError(
           'Failed to initiate payment. You can retry from My Bookings.'
@@ -267,7 +289,7 @@ export class BookingService {
       });
     }
 
-    const populated = await bookingRepository.findByIdWithService(booking._id.toString());
+    const populated = await this.bookingRepo.findByIdWithService(booking._id.toString());
     return { booking: populated!, clientSecret };
   }
 
@@ -279,7 +301,7 @@ export class BookingService {
     bookingId: string,
     reason?: string
   ): Promise<{ refundIssued: boolean; refundAmount: number; message: string }> {
-    const booking = await bookingRepository.findById(bookingId);
+    const booking = await this.bookingRepo.findById(bookingId);
     if (!booking) throw new NotFoundError('Booking not found');
 
     if (booking.user.toString() !== user._id.toString()) {
@@ -292,7 +314,7 @@ export class BookingService {
       throw new BadRequestError('Completed bookings cannot be cancelled');
     }
 
-    const serviceDoc = await serviceRepository.findById(booking.service.toString());
+    const serviceDoc = await this.serviceRepo.findById(booking.service.toString());
     const policy = serviceDoc?.cancellationPolicy ?? 'Flexible';
 
     let refundAmount = 0;
@@ -367,11 +389,11 @@ export class BookingService {
       reason: reason?.trim(),
       changedAt: new Date(),
     });
-    await bookingRepository.save(booking);
+    await this.bookingRepo.save(booking);
 
     // Free the availability window
     if (serviceDoc && serviceDoc.bookingMode !== 'time_slot') {
-      await serviceRepository.freeAvailabilityWindow(
+      await this.serviceRepo.freeAvailabilityWindow(
         serviceDoc._id.toString(),
         booking.startDate,
         booking.endDate
@@ -420,7 +442,7 @@ export class BookingService {
   ): Promise<IBooking> {
     const { status, reason } = dto;
 
-    const current = await bookingRepository.findById(bookingId);
+    const current = await this.bookingRepo.findById(bookingId);
     if (!current) throw new NotFoundError('Booking not found');
     if (current.status === status) {
       throw new BadRequestError(`Booking is already ${status}`);
@@ -453,7 +475,7 @@ export class BookingService {
       throw new ConflictError('Refund this paid booking before cancelling it');
     }
 
-    const updated = await bookingRepository.atomicStatusUpdate(
+    const updated = await this.bookingRepo.atomicStatusUpdate(
       bookingId,
       current.status,
       status,
@@ -506,7 +528,7 @@ export class BookingService {
     const limitNum = Math.min(50, Math.max(1, parseInt(limit, 10) || 10));
     const skip = (pageNum - 1) * limitNum;
 
-    const [data, total] = await bookingRepository.findByUser(filter, skip, limitNum);
+    const [data, total] = await this.bookingRepo.findByUser(filter, skip, limitNum);
     const totalPages = Math.ceil(total / limitNum);
 
     return {
@@ -534,7 +556,7 @@ export class BookingService {
     const limitNum = Math.min(50, parseInt(limit));
     const skip = (pageNum - 1) * limitNum;
 
-    const [data, total] = await bookingRepository.findAll(filter, skip, limitNum);
+    const [data, total] = await this.bookingRepo.findAll(filter, skip, limitNum);
     const totalPages = Math.ceil(total / limitNum);
 
     return {
@@ -553,10 +575,12 @@ export class BookingService {
    * Get a single booking — enforces owner/admin access control.
    */
   async getBookingById(user: IUser, bookingId: string): Promise<IBooking> {
-    const booking = await bookingRepository.findByIdWithUserAndService(bookingId);
+    const booking = await this.bookingRepo.findByIdWithUserAndService(bookingId);
     if (!booking) throw new NotFoundError('Booking not found');
 
-    const isOwner = (booking.user as unknown as { _id: { toString(): string } })._id.toString() === user._id.toString();
+    const isOwner =
+      (booking.user as unknown as { _id: { toString(): string } })._id.toString() ===
+      user._id.toString();
     const isAdmin = user.role === 'admin';
 
     if (!isOwner && !isAdmin) throw new ForbiddenError('Access denied');

@@ -1,13 +1,19 @@
 import stripe from '../config/stripe';
 import appEvents from '../utils/eventEmitter';
 import bookingRepository from '../repositories/BookingRepository';
+import { IBookingRepository } from '../repositories/interfaces/IBookingRepository';
 import { IBooking } from '../models/Booking';
 
 /**
  * PaymentService — all Stripe webhook and retry-payment logic.
  * Completely decoupled from HTTP layer.
+ * Implements DIP via IBookingRepository injection.
  */
 export class PaymentService {
+  constructor(
+    private readonly bookingRepo: IBookingRepository = bookingRepository
+  ) {}
+
   /**
    * Handle a Stripe `payment_intent.succeeded` webhook event.
    * Idempotent — safe to call multiple times for the same payment.
@@ -16,7 +22,7 @@ export class PaymentService {
     paymentIntentId: string,
     bookingId: string
   ): Promise<void> {
-    const booking = await bookingRepository.atomicConfirm(
+    const booking = await this.bookingRepo.atomicConfirm(
       bookingId,
       paymentIntentId,
       {
@@ -51,7 +57,7 @@ export class PaymentService {
    * Cancels the pending booking to free the reserved slot.
    */
   async handlePaymentFailure(bookingId: string): Promise<void> {
-    const booking = await bookingRepository.findById(bookingId);
+    const booking = await this.bookingRepo.findById(bookingId);
     if (booking && booking.status === 'pending' && booking.paymentStatus === 'unpaid') {
       booking.status = 'cancelled';
       booking.statusHistory = booking.statusHistory || [];
@@ -62,7 +68,7 @@ export class PaymentService {
         reason: 'Auto-cancelled due to payment failure',
         changedAt: new Date(),
       });
-      await bookingRepository.save(booking);
+      await this.bookingRepo.save(booking);
     }
   }
 
@@ -74,7 +80,7 @@ export class PaymentService {
     userId: string,
     bookingId: string
   ): Promise<{ booking: IBooking; clientSecret?: string; alreadyConfirmed?: boolean; processing?: boolean }> {
-    const booking = await bookingRepository.findById(bookingId);
+    const booking = await this.bookingRepo.findById(bookingId);
     if (!booking) throw Object.assign(new Error('Booking not found'), { statusCode: 404 });
 
     if (booking.user.toString() !== userId) {
@@ -89,7 +95,7 @@ export class PaymentService {
       const existing = await stripe.paymentIntents.retrieve(booking.pendingStripePaymentIntentId);
 
       if (existing.status === 'succeeded') {
-        const confirmed = await bookingRepository.atomicConfirm(
+        const confirmed = await this.bookingRepo.atomicConfirm(
           bookingId,
           existing.id,
           {
@@ -140,7 +146,7 @@ export class PaymentService {
     }
 
     booking.pendingStripePaymentIntentId = intent.id;
-    await bookingRepository.save(booking);
+    await this.bookingRepo.save(booking);
 
     return { booking, clientSecret: intent.client_secret };
   }

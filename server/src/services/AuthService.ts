@@ -1,8 +1,10 @@
 import jwt from 'jsonwebtoken';
-import Otp from '../models/Otp';
 import env from '../config/env';
 import appEvents from '../utils/eventEmitter';
 import userRepository from '../repositories/UserRepository';
+import otpRepository from '../repositories/OtpRepository';
+import { IUserRepository } from '../repositories/interfaces/IUserRepository';
+import { IOtpRepository } from '../repositories/interfaces/IOtpRepository';
 import {
   BadRequestError,
   ConflictError,
@@ -14,9 +16,13 @@ import { IUser } from '../models/User';
 
 /**
  * AuthService — all authentication business logic.
- * Controllers call these methods and only handle HTTP request/response.
  */
 export class AuthService {
+  constructor(
+    private readonly userRepo: IUserRepository = userRepository,
+    private readonly otpRepo: IOtpRepository = otpRepository
+  ) {}
+
   private signToken(id: string): string {
     return jwt.sign({ id }, env.JWT_SECRET, {
       expiresIn: env.JWT_EXPIRES_IN,
@@ -38,14 +44,14 @@ export class AuthService {
    * Throws if the email is already registered.
    */
   async initiateRegistration(dto: RegisterDto): Promise<void> {
-    const existing = await userRepository.findByEmail(dto.email);
+    const existing = await this.userRepo.findByEmail(dto.email);
     if (existing) {
       throw new ConflictError('Email already registered');
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    await Otp.deleteMany({ email: dto.email });
-    await Otp.create({
+    await this.otpRepo.deleteByEmail(dto.email);
+    await this.otpRepo.create({
       email: dto.email,
       otp,
       userData: { name: dto.name, password: dto.password, phone: dto.phone },
@@ -63,7 +69,7 @@ export class AuthService {
       throw new BadRequestError('Email and OTP are required');
     }
 
-    const otpRecord = await Otp.findOne({ email, otp });
+    const otpRecord = await this.otpRepo.findByEmailAndOtp(email, otp);
     if (!otpRecord) {
       throw new BadRequestError('Invalid or expired OTP');
     }
@@ -72,10 +78,10 @@ export class AuthService {
     if (!password) {
       throw new BadRequestError('Invalid registration data in OTP session');
     }
-    const user = await userRepository.create({ name, email, password, phone });
+    const user = await this.userRepo.create({ name, email, password, phone });
     const token = this.signToken(user._id.toString());
 
-    await Otp.deleteOne({ _id: otpRecord._id });
+    await this.otpRepo.deleteById(otpRecord._id);
 
     return { token, user: this.formatUser(user) };
   }
@@ -86,12 +92,12 @@ export class AuthService {
   async resendOtp(email: string): Promise<void> {
     if (!email) throw new BadRequestError('Email is required');
 
-    const existingUser = await userRepository.findByEmail(email);
+    const existingUser = await this.userRepo.findByEmail(email);
     if (existingUser) {
       throw new ConflictError('Email already registered');
     }
 
-    const existingOtp = await Otp.findOne({ email });
+    const existingOtp = await this.otpRepo.findByEmail(email);
 
     if (existingOtp) {
       const secondsSinceCreated =
@@ -106,9 +112,7 @@ export class AuthService {
       }
 
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      existingOtp.otp = otp;
-      existingOtp.createdAt = new Date();
-      await existingOtp.save();
+      await this.otpRepo.updateOtpByEmail(email, otp, new Date());
       appEvents.emit('user.registered', { email, otp });
       return;
     }
@@ -120,7 +124,7 @@ export class AuthService {
    * Login — validates credentials and returns a signed token.
    */
   async login(dto: LoginDto): Promise<AuthResponseDto> {
-    const user = await userRepository.findByEmailWithPassword(dto.email);
+    const user = await this.userRepo.findByEmailWithPassword(dto.email);
     if (!user) {
       throw new UnauthorizedError('Invalid email or password');
     }
