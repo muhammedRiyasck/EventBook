@@ -1,12 +1,14 @@
+import { Types } from 'mongoose';
 import Service, { IService } from '../models/Service';
 import { GetServicesQueryDto } from '../dto/service.dto';
+import { IServiceRepository } from './interfaces/IServiceRepository';
 
 type SortOption = Record<string, 1 | -1>;
 
 /**
  * ServiceRepository — all Mongoose queries for the Service collection.
  */
-export class ServiceRepository {
+export class ServiceRepository implements IServiceRepository {
   async findById(id: string): Promise<IService | null> {
     return Service.findById(id);
   }
@@ -165,6 +167,11 @@ export class ServiceRepository {
       Service.find(filter).sort(selectedSort).skip(skip).limit(limitNum).populate('createdBy', 'name email'),
       Service.countDocuments(filter),
     ]);
+  }
+
+  async findIdsByRegex(regex: RegExp): Promise<Types.ObjectId[]> {
+    const services = await Service.find({ title: regex }).select('_id');
+    return services.map((s) => s._id as Types.ObjectId);
   }
 }
 

@@ -1,5 +1,6 @@
 import Booking, { IBooking, BookingStatus } from '../models/Booking';
 import { Types } from 'mongoose';
+import { IBookingRepository, BookingRevenueAggregates } from './interfaces/IBookingRepository';
 
 const SERVICE_POPULATE_FIELDS =
   'title category location pricePerDay images contact bookingMode pricingUnit cancellationPolicy';
@@ -16,7 +17,7 @@ export interface BookingConflictQuery {
  * BookingRepository — all Mongoose queries for the Booking collection.
  * Encapsulates query logic
  */
-export class BookingRepository {
+export class BookingRepository implements IBookingRepository {
   async findById(id: string): Promise<IBooking | null> {
     return Booking.findById(id);
   }
@@ -178,6 +179,122 @@ export class BookingRepository {
       startDate: { $gte: dayStart, $lt: dayEnd },
       status: { $nin: ['cancelled'] },
     }).select('timeSlotId guestCount');
+  }
+
+  async findByIdWithFullDetails(id: string): Promise<IBooking | null> {
+    return Booking.findById(id)
+      .populate('user', 'name email phone')
+      .populate('service', 'title category location pricePerDay images contact bookingMode pricingUnit');
+  }
+
+  async findPaginatedTransactions(
+    filter: Record<string, unknown>,
+    sortField: string,
+    skip: number,
+    limit: number
+  ): Promise<[IBooking[], number]> {
+    return Promise.all([
+      Booking.find(filter)
+        .populate('user', 'name email phone')
+        .populate('service', 'title category location pricePerDay bookingMode pricingUnit')
+        .sort(sortField)
+        .skip(skip)
+        .limit(limit),
+      Booking.countDocuments(filter),
+    ]);
+  }
+
+  async getRevenueSummaryAggregates(sinceDate: Date): Promise<BookingRevenueAggregates> {
+    const [overview, dailyRevenue, topServices, refundStats] = await Promise.all([
+      Booking.aggregate([
+        {
+          $facet: {
+            totalRevenue: [
+              { $match: { paymentStatus: { $in: ['paid', 'partially_refunded', 'refunded'] } } },
+              { $group: { _id: null, total: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+            ],
+            periodRevenue: [
+              {
+                $match: {
+                  paymentStatus: { $in: ['paid', 'partially_refunded', 'refunded'] },
+                  createdAt: { $gte: sinceDate },
+                },
+              },
+              { $group: { _id: null, total: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+            ],
+          },
+        },
+      ]),
+      Booking.aggregate([
+        {
+          $match: {
+            paymentStatus: { $in: ['paid', 'partially_refunded', 'refunded'] },
+            createdAt: { $gte: sinceDate },
+          },
+        },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            revenue: { $sum: '$totalPrice' },
+            refunds: {
+              $sum: {
+                $cond: [
+                  { $eq: ['$refundStatus', 'succeeded'] },
+                  { $ifNull: ['$refundAmount', 0] },
+                  0,
+                ],
+              },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+      Booking.aggregate([
+        { $match: { paymentStatus: { $in: ['paid', 'partially_refunded', 'refunded'] } } },
+        { $group: { _id: '$service', revenue: { $sum: '$totalPrice' }, bookings: { $sum: 1 } } },
+        { $sort: { revenue: -1 } },
+        { $limit: 5 },
+        { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'service' } },
+        { $unwind: '$service' },
+        { $project: { title: '$service.title', category: '$service.category', revenue: 1, bookings: 1 } },
+      ]),
+      Booking.aggregate([
+        { $match: { refundStatus: 'succeeded' } },
+        {
+          $group: {
+            _id: null,
+            totalRefunded: { $sum: '$refundAmount' },
+            refundCount: { $sum: 1 },
+            fullRefunds: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'refunded'] }, 1, 0] } },
+            partialRefunds: { $sum: { $cond: [{ $eq: ['$paymentStatus', 'partially_refunded'] }, 1, 0] } },
+          },
+        },
+      ]),
+    ]);
+
+    return {
+      overview,
+      dailyRevenue,
+      topServices,
+      refundStats,
+    };
+  }
+
+  async findRefunds(
+    filter: Record<string, unknown>,
+    skip: number,
+    limit: number
+  ): Promise<[IBooking[], number]> {
+    return Promise.all([
+      Booking.find(filter)
+        .populate('user', 'name email phone')
+        .populate('service', 'title category')
+        .sort('-refundedAt')
+        .skip(skip)
+        .limit(limit),
+      Booking.countDocuments(filter),
+    ]);
   }
 }
 
