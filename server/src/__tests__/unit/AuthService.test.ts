@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import authService from '../../services/AuthService';
 import userRepository from '../../repositories/UserRepository';
-import Otp from '../../models/Otp';
+import otpRepository from '../../repositories/OtpRepository';
 import appEvents from '../../utils/eventEmitter';
 import { BadRequestError, ConflictError, UnauthorizedError } from '../../errors/AppError';
 
 // Mock dependencies
 vi.mock('../../repositories/UserRepository');
-vi.mock('../../models/Otp');
+vi.mock('../../repositories/OtpRepository');
 vi.mock('../../utils/eventEmitter', () => ({
   default: {
     emit: vi.fn(),
@@ -37,8 +37,8 @@ describe('AuthService (Unit)', () => {
 
     it('creates OTP session and emits event when email is available', async () => {
       vi.mocked(userRepository.findByEmail).mockResolvedValue(null);
-      vi.mocked(Otp.deleteMany).mockResolvedValue({} as never);
-      vi.mocked(Otp.create).mockResolvedValue({} as never);
+      vi.mocked(otpRepository.deleteByEmail).mockResolvedValue({} as never);
+      vi.mocked(otpRepository.create).mockResolvedValue({} as never);
 
       await authService.initiateRegistration({
         name: 'John Doe',
@@ -46,11 +46,14 @@ describe('AuthService (Unit)', () => {
         password: 'password123',
       });
 
-      expect(Otp.deleteMany).toHaveBeenCalledWith({ email: 'test@example.com' });
-      expect(Otp.create).toHaveBeenCalled();
-      expect(appEvents.emit).toHaveBeenCalledWith('user.registered', expect.objectContaining({
-        email: 'test@example.com',
-      }));
+      expect(otpRepository.deleteByEmail).toHaveBeenCalledWith('test@example.com');
+      expect(otpRepository.create).toHaveBeenCalled();
+      expect(appEvents.emit).toHaveBeenCalledWith(
+        'user.registered',
+        expect.objectContaining({
+          email: 'test@example.com',
+        })
+      );
     });
   });
 
@@ -61,7 +64,7 @@ describe('AuthService (Unit)', () => {
     });
 
     it('throws BadRequestError if OTP is invalid or expired', async () => {
-      vi.mocked(Otp.findOne).mockResolvedValue(null);
+      vi.mocked(otpRepository.findByEmailAndOtp).mockResolvedValue(null);
 
       await expect(
         authService.verifyOtpAndRegister('test@example.com', '999999')
@@ -80,7 +83,7 @@ describe('AuthService (Unit)', () => {
         },
       };
 
-      vi.mocked(Otp.findOne).mockResolvedValue(mockOtpRecord as never);
+      vi.mocked(otpRepository.findByEmailAndOtp).mockResolvedValue(mockOtpRecord as never);
       vi.mocked(userRepository.create).mockResolvedValue({
         _id: 'user999',
         name: 'Jane Doe',
@@ -89,7 +92,7 @@ describe('AuthService (Unit)', () => {
         phone: '9876543210',
         createdAt: new Date(),
       } as never);
-      vi.mocked(Otp.deleteOne).mockResolvedValue({} as never);
+      vi.mocked(otpRepository.deleteById).mockResolvedValue({} as never);
 
       const result = await authService.verifyOtpAndRegister('test@example.com', '123456');
 
@@ -101,7 +104,7 @@ describe('AuthService (Unit)', () => {
         role: 'user',
         phone: '9876543210',
       });
-      expect(Otp.deleteOne).toHaveBeenCalledWith({ _id: 'otp123' });
+      expect(otpRepository.deleteById).toHaveBeenCalledWith('otp123');
     });
   });
 
