@@ -52,6 +52,10 @@ export default function AdminPaymentsPage() {
     summaryPeriod,
     setSummaryPeriod,
     loadingSummary,
+    dailyPage,
+    setDailyPage,
+    servicesPage,
+    setServicesPage,
     refundsList,
     loadingRefunds,
     refundsPage,
@@ -244,6 +248,10 @@ export default function AdminPaymentsPage() {
             loadingSummary={loadingSummary}
             summaryPeriod={summaryPeriod}
             onSummaryPeriodChange={setSummaryPeriod}
+            dailyPage={dailyPage}
+            onDailyPageChange={setDailyPage}
+            servicesPage={servicesPage}
+            onServicesPageChange={setServicesPage}
           />
         )}
 

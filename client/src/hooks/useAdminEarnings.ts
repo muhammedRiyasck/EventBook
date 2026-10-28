@@ -29,6 +29,10 @@ export function useAdminEarnings(isAdmin: boolean) {
   const [summaryData, setSummaryData] = useState<RevenueSummaryData | null>(null);
   const [summaryPeriod, setSummaryPeriod] = useState("30");
   const [loadingSummary, setLoadingSummary] = useState(false);
+  // Backend-driven pagination for summary sub-tables
+  const [dailyPage, setDailyPage] = useState(1);
+  const [servicesPage, setServicesPage] = useState(1);
+  const SUMMARY_PAGE_LIMIT = 10;
 
   // Dedicated Refunds State
   const [refundsList, setRefundsList] = useState<PopulatedBooking[]>([]);
@@ -98,9 +102,14 @@ export function useAdminEarnings(isAdmin: boolean) {
   const fetchSummary = useCallback(async () => {
     setLoadingSummary(true);
     try {
-      const { data } = await api.get(
-        `/payments/summary?period=${summaryPeriod}`
-      );
+      const params = new URLSearchParams({
+        period: summaryPeriod,
+        dailyPage: String(dailyPage),
+        dailyLimit: String(SUMMARY_PAGE_LIMIT),
+        servicesPage: String(servicesPage),
+        servicesLimit: String(SUMMARY_PAGE_LIMIT),
+      });
+      const { data } = await api.get(`/payments/summary?${params.toString()}`);
       if (data.success) {
         setSummaryData(data.data);
       }
@@ -109,7 +118,7 @@ export function useAdminEarnings(isAdmin: boolean) {
     } finally {
       setLoadingSummary(false);
     }
-  }, [summaryPeriod]);
+  }, [summaryPeriod, dailyPage, servicesPage]);
 
   // Fetch Refunds
   const fetchRefunds = useCallback(
@@ -141,6 +150,8 @@ export function useAdminEarnings(isAdmin: boolean) {
     isAdmin,
     activeTab,
     refundsPage,
+    dailyPage,
+    servicesPage,
     fetchTransactions,
     fetchSummary,
     fetchRefunds,
@@ -166,6 +177,13 @@ export function useAdminEarnings(isAdmin: boolean) {
     sortBy,
     fetchTransactions,
   ]);
+
+  // Reset summary sub-table pages when time window changes
+  useEffect(() => {
+    setDailyPage(1);
+    setServicesPage(1);
+  }, [summaryPeriod]);
+
 
   // View Details
   const handleViewDetails = async (tx: PopulatedBooking) => {
@@ -253,61 +271,109 @@ export function useAdminEarnings(isAdmin: boolean) {
   };
 
   // Export to CSV
-  const handleExportCSV = (type: "transactions" | "refunds") => {
-    const list = type === "transactions" ? transactions : refundsList;
-    if (!list.length) {
-      toast.error("No data available to export");
-      return;
+  const handleExportCSV = async (type: "transactions" | "refunds") => {
+    const toastId = toast.loading(
+      `Preparing complete ${type} CSV report...`
+    );
+
+    try {
+      let list: PopulatedBooking[] = [];
+      let currentPage = 1;
+      let totalPagesCount = 1;
+
+      // Batch-fetch all matching records across pages
+      while (currentPage <= totalPagesCount) {
+        if (type === "transactions") {
+          const params = new URLSearchParams({
+            page: String(currentPage),
+            limit: "50",
+            sort: sortBy,
+          });
+          if (paymentStatusFilter !== "all")
+            params.set("paymentStatus", paymentStatusFilter);
+          if (bookingStatusFilter !== "all")
+            params.set("status", bookingStatusFilter);
+          if (search.trim()) params.set("search", search.trim());
+          if (startDate) params.set("startDate", startDate);
+          if (endDate) params.set("endDate", endDate);
+
+          const { data } = await api.get(
+            `/payments/transactions?${params.toString()}`
+          );
+          list = list.concat(data.data || []);
+          totalPagesCount = data.pagination?.totalPages || 1;
+        } else {
+          const params = new URLSearchParams({
+            page: String(currentPage),
+            limit: "50",
+          });
+          const { data } = await api.get(
+            `/payments/refunds?${params.toString()}`
+          );
+          list = list.concat(data.data || []);
+          totalPagesCount = data.pagination?.totalPages || 1;
+        }
+        currentPage++;
+      }
+
+      if (!list.length) {
+        toast.error("No data available to export", { id: toastId });
+        return;
+      }
+
+      const headers = [
+        "Booking ID",
+        "Customer Name",
+        "Customer Email",
+        "Customer Phone",
+        "Service Title",
+        "Total Price (INR)",
+        "Payment Status",
+        "Booking Status",
+        "Payment Gateway ID",
+        "Refund Status",
+        "Refund Amount (INR)",
+        "Refund Reason",
+        "Transaction Date",
+      ];
+
+      const rows = list.map((b) => [
+        `"${b._id}"`,
+        `"${b.user?.name || "N/A"}"`,
+        `"${b.user?.email || "N/A"}"`,
+        `"${b.user?.phone || "N/A"}"`,
+        `"${b.service?.title || "N/A"}"`,
+        b.totalPrice,
+        b.paymentStatus,
+        b.status,
+        `"${b.stripePaymentIntentId || "N/A"}"`,
+        b.refundStatus || "none",
+        b.refundAmount || 0,
+        `"${b.refundReason || ""}"`,
+        `"${new Date(b.createdAt).toISOString()}"`,
+      ]);
+
+      const csvContent =
+        "data:text/csv;charset=utf-8," +
+        [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute(
+        "download",
+        `eventbook_${type}_report_${new Date().toISOString().slice(0, 10)}.csv`
+      );
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast.success(
+        `${type.charAt(0).toUpperCase() + type.slice(1)} report exported (${list.length} records)`,
+        { id: toastId }
+      );
+    } catch {
+      toast.error(`Failed to export ${type} report`, { id: toastId });
     }
-
-    const headers = [
-      "Booking ID",
-      "Customer Name",
-      "Customer Email",
-      "Customer Phone",
-      "Service Title",
-      "Total Price (INR)",
-      "Payment Status",
-      "Booking Status",
-      "Payment Gateway ID",
-      "Refund Status",
-      "Refund Amount (INR)",
-      "Refund Reason",
-      "Transaction Date",
-    ];
-
-    const rows = list.map((b) => [
-      `"${b._id}"`,
-      `"${b.user?.name || "N/A"}"`,
-      `"${b.user?.email || "N/A"}"`,
-      `"${b.user?.phone || "N/A"}"`,
-      `"${b.service?.title || "N/A"}"`,
-      b.totalPrice,
-      b.paymentStatus,
-      b.status,
-      `"${b.stripePaymentIntentId || "N/A"}"`,
-      b.refundStatus || "none",
-      b.refundAmount || 0,
-      `"${b.refundReason || ""}"`,
-      `"${new Date(b.createdAt).toISOString()}"`,
-    ]);
-
-    const csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `eventbook_${type}_report_${new Date().toISOString().slice(0, 10)}.csv`
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success(
-      `${type.charAt(0).toUpperCase() + type.slice(1)} CSV report exported`
-    );
   };
 
   return {
@@ -335,6 +401,11 @@ export function useAdminEarnings(isAdmin: boolean) {
     summaryPeriod,
     setSummaryPeriod,
     loadingSummary,
+    dailyPage,
+    setDailyPage,
+    servicesPage,
+    setServicesPage,
+    SUMMARY_PAGE_LIMIT,
     refundsList,
     loadingRefunds,
     refundsPage,

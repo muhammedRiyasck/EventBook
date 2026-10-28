@@ -145,6 +145,7 @@ export interface RevenueSummaryData {
     refunds: number;
     count: number;
   }>;
+  dailyPagination: Pagination;
   topServices: Array<{
     _id: string;
     title: string;
@@ -152,6 +153,7 @@ export interface RevenueSummaryData {
     revenue: number;
     bookings: number;
   }>;
+  servicesPagination: Pagination;
   refundStats: {
     totalRefunded: number;
     count: number;
