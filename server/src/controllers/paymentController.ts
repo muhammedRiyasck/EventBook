@@ -28,7 +28,14 @@ export const getTransactionById = async (req: AuthRequest, res: Response, next: 
 
 export const getRevenueSummary = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const data = await adminPaymentService.getRevenueSummary(req.query.period as string);
+    const { period, dailyPage, dailyLimit, servicesPage, servicesLimit } = req.query as Record<string, string>;
+    const data = await adminPaymentService.getRevenueSummary(
+      period,
+      dailyPage,
+      dailyLimit,
+      servicesPage,
+      servicesLimit
+    );
     res.status(200).json({ success: true, data });
   } catch (error) {
     next(error);

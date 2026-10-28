@@ -204,8 +204,14 @@ export class BookingRepository implements IBookingRepository {
     ]);
   }
 
-  async getRevenueSummaryAggregates(sinceDate: Date): Promise<BookingRevenueAggregates> {
-    const [overview, dailyRevenue, topServices, refundStats] = await Promise.all([
+  async getRevenueSummaryAggregates(
+    sinceDate: Date,
+    dailySkip: number,
+    dailyLimit: number,
+    servicesSkip: number,
+    servicesLimit: number
+  ): Promise<BookingRevenueAggregates> {
+    const [overview, dailyResult, servicesResult, refundStats] = await Promise.all([
       Booking.aggregate([
         {
           $facet: {
@@ -225,6 +231,7 @@ export class BookingRepository implements IBookingRepository {
           },
         },
       ]),
+      // Daily revenue: use $facet to get both the paginated slice and total count
       Booking.aggregate([
         {
           $match: {
@@ -249,15 +256,27 @@ export class BookingRepository implements IBookingRepository {
           },
         },
         { $sort: { _id: 1 } },
+        {
+          $facet: {
+            data: [{ $skip: dailySkip }, { $limit: dailyLimit }],
+            total: [{ $count: 'count' }],
+          },
+        },
       ]),
+      // Top services: use $facet to get both the paginated slice and total count
       Booking.aggregate([
         { $match: { paymentStatus: { $in: ['paid', 'partially_refunded', 'refunded'] } } },
         { $group: { _id: '$service', revenue: { $sum: '$totalPrice' }, bookings: { $sum: 1 } } },
         { $sort: { revenue: -1 } },
-        { $limit: 5 },
         { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'service' } },
         { $unwind: '$service' },
         { $project: { title: '$service.title', category: '$service.category', revenue: 1, bookings: 1 } },
+        {
+          $facet: {
+            data: [{ $skip: servicesSkip }, { $limit: servicesLimit }],
+            total: [{ $count: 'count' }],
+          },
+        },
       ]),
       Booking.aggregate([
         { $match: { refundStatus: 'succeeded' } },
@@ -273,10 +292,17 @@ export class BookingRepository implements IBookingRepository {
       ]),
     ]);
 
+    const dailyRevenue = dailyResult[0]?.data || [];
+    const totalDailyRows: number = dailyResult[0]?.total?.[0]?.count || 0;
+    const topServices = servicesResult[0]?.data || [];
+    const totalTopServices: number = servicesResult[0]?.total?.[0]?.count || 0;
+
     return {
       overview,
       dailyRevenue,
+      totalDailyRows,
       topServices,
+      totalTopServices,
       refundStats,
     };
   }

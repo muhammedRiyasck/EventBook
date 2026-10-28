@@ -162,13 +162,30 @@ export class AdminPaymentService {
     return { booking, stripeDetails };
   }
 
-  async getRevenueSummary(period = '30') {
+  async getRevenueSummary(
+    period = '30',
+    dailyPage = '1',
+    dailyLimit = '10',
+    servicesPage = '1',
+    servicesLimit = '10'
+  ) {
     const days = Math.min(365, Math.max(1, parseInt(period)));
     const since = new Date();
     since.setDate(since.getDate() - days);
 
-    const { overview, dailyRevenue, topServices, refundStats } =
-      await this.bookingRepo.getRevenueSummaryAggregates(since);
+    const dPageNum = Math.max(1, parseInt(dailyPage));
+    const dLimitNum = Math.min(100, Math.max(1, parseInt(dailyLimit)));
+    const sPageNum = Math.max(1, parseInt(servicesPage));
+    const sLimitNum = Math.min(100, Math.max(1, parseInt(servicesLimit)));
+
+    const { overview, dailyRevenue, totalDailyRows, topServices, totalTopServices, refundStats } =
+      await this.bookingRepo.getRevenueSummaryAggregates(
+        since,
+        (dPageNum - 1) * dLimitNum,
+        dLimitNum,
+        (sPageNum - 1) * sLimitNum,
+        sLimitNum
+      );
 
     const o = overview[0];
     const grossRevenue = o?.totalRevenue?.[0]?.total || 0;
@@ -189,7 +206,23 @@ export class AdminPaymentService {
         periodTransactions,
       },
       dailyRevenue,
+      dailyPagination: {
+        currentPage: dPageNum,
+        totalPages: Math.ceil(Math.max(totalDailyRows, 1) / dLimitNum),
+        totalItems: totalDailyRows,
+        itemsPerPage: dLimitNum,
+        hasNextPage: dPageNum < Math.ceil(Math.max(totalDailyRows, 1) / dLimitNum),
+        hasPrevPage: dPageNum > 1,
+      },
       topServices,
+      servicesPagination: {
+        currentPage: sPageNum,
+        totalPages: Math.ceil(Math.max(totalTopServices, 1) / sLimitNum),
+        totalItems: totalTopServices,
+        itemsPerPage: sLimitNum,
+        hasNextPage: sPageNum < Math.ceil(Math.max(totalTopServices, 1) / sLimitNum),
+        hasPrevPage: sPageNum > 1,
+      },
       refundStats: {
         totalRefunded: refundedRevenue,
         count: refundCount,

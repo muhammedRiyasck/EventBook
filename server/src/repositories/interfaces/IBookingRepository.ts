@@ -12,12 +12,15 @@ export interface BookingRevenueAggregates {
     refunds: number;
     count: number;
   }>;
+  totalDailyRows: number;
   topServices: Array<{
+    _id?: unknown;
     title: string;
     category: string;
     revenue: number;
     bookings: number;
   }>;
+  totalTopServices: number;
   refundStats: Array<{
     _id: null;
     totalRefunded: number;
@@ -87,7 +90,13 @@ export interface IBookingRepository {
     skip: number,
     limit: number
   ): Promise<[IBooking[], number]>;
-  getRevenueSummaryAggregates(sinceDate: Date): Promise<BookingRevenueAggregates>;
+  getRevenueSummaryAggregates(
+    sinceDate: Date,
+    dailySkip: number,
+    dailyLimit: number,
+    servicesSkip: number,
+    servicesLimit: number
+  ): Promise<BookingRevenueAggregates>;
   findRefunds(
     filter: Record<string, unknown>,
     skip: number,
