@@ -338,22 +338,25 @@ export const ServicesTable: React.FC<ServicesTableProps> = ({
                       </div>
 
                       <div>
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                            svc.isActive !== false
-                              ? "bg-emerald-400/15 text-emerald-400 border border-emerald-400/25"
-                              : "bg-slate-500/15 text-slate-400 border border-slate-500/25"
-                          }`}
-                        >
+                        {svc.isActive === false ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-slate-500/25 bg-slate-500/15 px-2 py-0.5 text-[10px] font-bold text-slate-400">
+                            <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+                            Inactive
+                          </span>
+                        ) : svc.availableTo && new Date(svc.availableTo).setHours(23, 59, 59, 999) < Date.now() ? (
                           <span
-                            className={`h-1.5 w-1.5 rounded-full ${
-                              svc.isActive !== false
-                                ? "bg-emerald-400 animate-pulse"
-                                : "bg-slate-400"
-                            }`}
-                          />
-                          {svc.isActive !== false ? "Active" : "Inactive"}
-                        </span>
+                            className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-400"
+                            title="Expired: hidden from users because availableTo date has passed"
+                          >
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                            Expired
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/25 bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            Active
+                          </span>
+                        )}
                       </div>
                     </div>
 

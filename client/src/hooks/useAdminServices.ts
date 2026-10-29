@@ -90,7 +90,13 @@ export function useAdminServices(isAdmin: boolean) {
   // Metrics Calculation
   const metrics = useMemo(() => {
     const total = totalItems || services.length;
-    const active = services.filter((s) => s.isActive !== false).length;
+    const now = Date.now();
+    const active = services.filter(
+      (s) =>
+        s.isActive !== false &&
+        (!s.availableTo ||
+          new Date(s.availableTo).setHours(23, 59, 59, 999) >= now)
+    ).length;
     const totalRate = services.reduce(
       (acc, s) => acc + (s.pricePerDay || 0),
       0

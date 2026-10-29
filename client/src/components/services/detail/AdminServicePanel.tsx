@@ -28,15 +28,22 @@ export const AdminServicePanel: React.FC<AdminServicePanelProps> = ({
       <div className="space-y-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-4 text-xs">
         <div className="flex items-center justify-between text-slate-400">
           <span>Status</span>
-          <span
-            className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${
-              service.isActive
-                ? "border border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
-                : "border border-red-400/20 bg-red-400/10 text-red-400"
-            }`}
-          >
-            {service.isActive ? "Active" : "Inactive"}
-          </span>
+          {service.isActive === false ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-red-400/20 bg-red-400/10 px-2 py-0.5 text-[11px] font-semibold text-red-400">
+              Inactive
+            </span>
+          ) : service.availableTo && new Date(service.availableTo).setHours(23, 59, 59, 999) < Date.now() ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-amber-400/20 bg-amber-400/10 px-2 py-0.5 text-[11px] font-semibold text-amber-400"
+              title="Expired: hidden from users"
+            >
+              Expired
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
+              Active
+            </span>
+          )}
         </div>
         <div className="flex items-center justify-between text-slate-400">
           <span>Booking Mode</span>

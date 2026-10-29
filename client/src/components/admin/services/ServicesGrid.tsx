@@ -75,15 +75,22 @@ export const ServicesGrid: React.FC<ServicesGridProps> = ({
                 </div>
 
                 <div className="absolute right-3 top-3">
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold backdrop-blur-md ${
-                      svc.isActive !== false
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-400/30"
-                        : "bg-slate-500/20 text-slate-300 border border-slate-400/30"
-                    }`}
-                  >
-                    {svc.isActive !== false ? "Active" : "Inactive"}
-                  </span>
+                  {svc.isActive === false ? (
+                    <span className="rounded-full border border-slate-400/30 bg-slate-500/20 px-2.5 py-0.5 text-[10px] font-bold text-slate-300 backdrop-blur-md">
+                      Inactive
+                    </span>
+                  ) : svc.availableTo && new Date(svc.availableTo).setHours(23, 59, 59, 999) < Date.now() ? (
+                    <span
+                      className="rounded-full border border-amber-400/30 bg-amber-500/20 px-2.5 py-0.5 text-[10px] font-bold text-amber-300 backdrop-blur-md"
+                      title="Expired: hidden from users because availableTo date has passed"
+                    >
+                      Expired
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-emerald-400/30 bg-emerald-500/20 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300 backdrop-blur-md">
+                      Active
+                    </span>
+                  )}
                 </div>
 
                 <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
